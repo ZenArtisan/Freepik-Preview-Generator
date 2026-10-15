@@ -32,84 +32,84 @@ DARK = "dark"
 
 THEME = {
     LIGHT: {
-        "bg":           "#F8F9FA",
+        "bg":           "#F5F5F7",
         "card_bg":      "#FFFFFF",
-        "card_border":  "#E5E7EB",
-        "text":         "#111827",
-        "text_sec":     "#6B7280",
-        "text_muted":   "#9CA3AF",
+        "card_border":  "#E5E5EA",
+        "text":         "#1D1D1F",
+        "text_sec":     "#6E6E73",
+        "text_muted":   "#86868B",
         "field_bg":     "#FFFFFF",
-        "field_border": "#D1D5DB",
-        "field_focus":  "#6366F1",
-        "accent":       "#6366F1",
-        "accent_hover": "#4F46E5",
-        "accent_press": "#4338CA",
-        "danger":       "#EF4444",
-        "danger_hover": "rgba(239, 68, 68, 0.10)",
-        "chip_bg":      "#F3F4F6",
-        "chip_border":  "#E5E7EB",
-        "chip_hover":   "#E5E7EB",
-        "scroll_bg":    "#F3F4F6",
-        "scroll_handle":"#D1D5DB",
-        "scroll_hover": "#9CA3AF",
-        "slider_track": "#E5E7EB",
-        "slider_fill":  "#6366F1",
+        "field_border": "#D1D1D6",
+        "field_focus":  "#0071E3",
+        "accent":       "#0071E3",
+        "accent_hover": "#0077ED",
+        "accent_press": "#0062C4",
+        "danger":       "#FF3B30",
+        "danger_hover": "rgba(255, 59, 48, 0.10)",
+        "chip_bg":      "#F2F2F7",
+        "chip_border":  "#E5E5EA",
+        "chip_hover":   "#E5E5EA",
+        "scroll_bg":    "#F5F5F7",
+        "scroll_handle":"#C7C7CC",
+        "scroll_hover": "#8E8E93",
+        "slider_track": "#E5E5EA",
+        "slider_fill":  "#0071E3",
         "slider_knob":  "#FFFFFF",
-        "check_border": "#D1D5DB",
-        "check_active": "#6366F1",
+        "check_border": "#C7C7CC",
+        "check_active": "#0071E3",
         "preview_bg":   "#FFFFFF",
-        "preview_bdr":  "#E5E7EB",
+        "preview_bdr":  "#E5E5EA",
         "success_bg":   "#D1FAE5",
         "success_fg":   "#065F46",
         "fail_bg":      "#FEE2E2",
         "fail_fg":      "#991B1B",
-        "info_bg":      "#DBEAFE",
-        "info_fg":      "#1E40AF",
-        "disabled_fg":  "#9CA3AF",
-        "disabled_bg":  "#F3F4F6",
-        "dropdown_arr": "#6B7280",
-        "toggle_bg":    "#F3F4F6",
-        "toggle_bdr":   "#E5E7EB",
+        "info_bg":      "#EBF5FF",
+        "info_fg":      "#0071E3",
+        "disabled_fg":  "#A1A1A6",
+        "disabled_bg":  "#F2F2F7",
+        "dropdown_arr": "#6E6E73",
+        "toggle_bg":    "#E5E5EA",
+        "toggle_bdr":   "#D1D1D6",
     },
     DARK: {
-        "bg":           "#111111",
-        "card_bg":      "#1A1A1A",
-        "card_border":  "#2A2A2A",
-        "text":         "#F3F4F6",
-        "text_sec":     "#A1A1AA",
-        "text_muted":   "#71717A",
-        "field_bg":     "#222222",
-        "field_border": "#333333",
-        "field_focus":  "#818CF8",
-        "accent":       "#818CF8",
-        "accent_hover": "#6366F1",
-        "accent_press": "#4F46E5",
-        "danger":       "#F87171",
-        "danger_hover": "rgba(248, 113, 113, 0.12)",
-        "chip_bg":      "#2A2A2A",
-        "chip_border":  "#333333",
-        "chip_hover":   "#3A3A3A",
-        "scroll_bg":    "#1A1A1A",
-        "scroll_handle":"#3A3A3A",
-        "scroll_hover": "#555555",
-        "slider_track": "#333333",
-        "slider_fill":  "#818CF8",
-        "slider_knob":  "#F3F4F6",
-        "check_border": "#444444",
-        "check_active": "#818CF8",
-        "preview_bg":   "#0D0D0D",
-        "preview_bdr":  "#2A2A2A",
+        "bg":           "#161618",
+        "card_bg":      "#212124",
+        "card_border":  "#2E2E32",
+        "text":         "#F5F5F7",
+        "text_sec":     "#98989D",
+        "text_muted":   "#76767A",
+        "field_bg":     "#2C2C2E",
+        "field_border": "#3A3A3C",
+        "field_focus":  "#0A84FF",
+        "accent":       "#0A84FF",
+        "accent_hover": "#2997FF",
+        "accent_press": "#0071E3",
+        "danger":       "#FF453A",
+        "danger_hover": "rgba(255, 69, 58, 0.14)",
+        "chip_bg":      "#2C2C2E",
+        "chip_border":  "#3A3A3C",
+        "chip_hover":   "#3A3A3C",
+        "scroll_bg":    "#161618",
+        "scroll_handle":"#3A3A3C",
+        "scroll_hover": "#636366",
+        "slider_track": "#3A3A3C",
+        "slider_fill":  "#0A84FF",
+        "slider_knob":  "#FFFFFF",
+        "check_border": "#48484A",
+        "check_active": "#0A84FF",
+        "preview_bg":   "#0E0E10",
+        "preview_bdr":  "#2E2E32",
         "success_bg":   "#064E3B",
         "success_fg":   "#6EE7B7",
         "fail_bg":      "#7F1D1D",
         "fail_fg":      "#FCA5A5",
         "info_bg":      "#1E3A5F",
         "info_fg":      "#93C5FD",
-        "disabled_fg":  "#555555",
-        "disabled_bg":  "#1A1A1A",
-        "dropdown_arr": "#A1A1AA",
-        "toggle_bg":    "#2A2A2A",
-        "toggle_bdr":   "#333333",
+        "disabled_fg":  "#636366",
+        "disabled_bg":  "#1C1C1E",
+        "dropdown_arr": "#98989D",
+        "toggle_bg":    "#2C2C2E",
+        "toggle_bdr":   "#3A3A3C",
     },
 }
 
@@ -153,19 +153,19 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0px; 
 QFrame[class="Card"] {{
     background-color: {t["card_bg"]};
     border: 1px solid {t["card_border"]};
-    border-radius: 14px;
+    border-radius: 12px;
 }}
 
 /* ── Labels ── */
 QLabel {{
     color: {t["text"]};
-    font-family: "Segoe UI Variable", "Segoe UI", "SF Pro Display", "Helvetica Neue", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI Variable", "Segoe UI", sans-serif;
 }}
 QLabel[class="CardTitle"] {{
-    font-size: 14px; font-weight: 700; color: {t["text"]}; letter-spacing: -0.2px;
+    font-size: 13px; font-weight: 700; color: {t["text"]}; letter-spacing: -0.1px;
 }}
 QLabel[class="FieldLabel"] {{
-    font-size: 12px; font-weight: 600; color: {t["text_sec"]};
+    font-size: 11px; font-weight: 600; color: {t["text_sec"]};
 }}
 QLabel[class="HelpText"] {{
     font-size: 11px; color: {t["text_muted"]};
@@ -175,11 +175,11 @@ QLabel[class="HelpText"] {{
 QLineEdit {{
     background-color: {t["field_bg"]};
     color: {t["text"]};
-    border: 1.5px solid {t["field_border"]};
-    border-radius: 10px;
-    padding: 9px 14px;
-    font-size: 13px;
-    font-family: "Segoe UI Variable", "Segoe UI", "SF Pro Display", sans-serif;
+    border: 1px solid {t["field_border"]};
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", sans-serif;
     selection-background-color: {t["accent"]};
     selection-color: #FFFFFF;
 }}
@@ -193,28 +193,28 @@ QLineEdit:disabled {{
 QComboBox {{
     background-color: {t["field_bg"]};
     color: {t["text"]};
-    border: 1.5px solid {t["field_border"]};
-    border-radius: 10px;
-    padding: 8px 14px;
-    font-size: 13px;
-    font-family: "Segoe UI Variable", "Segoe UI", "SF Pro Display", sans-serif;
+    border: 1px solid {t["field_border"]};
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", sans-serif;
     min-height: 20px;
 }}
 QComboBox:hover {{ border-color: {t["scroll_hover"]}; }}
 QComboBox:focus {{ border-color: {t["field_focus"]}; }}
 QComboBox::drop-down {{
-    subcontrol-origin: padding; subcontrol-position: top right; width: 28px; border-left: none;
+    subcontrol-origin: padding; subcontrol-position: top right; width: 26px; border-left: none;
 }}
 QComboBox::down-arrow {{
     image: none;
     border-left: 4px solid transparent; border-right: 4px solid transparent;
-    border-top: 5px solid {t["dropdown_arr"]}; margin-right: 10px;
+    border-top: 5px solid {t["dropdown_arr"]}; margin-right: 8px;
 }}
 QComboBox QAbstractItemView {{
     background-color: {t["card_bg"]};
     color: {t["text"]};
     border: 1px solid {t["card_border"]};
-    border-radius: 10px;
+    border-radius: 8px;
     selection-background-color: {t["accent"]};
     selection-color: #FFFFFF;
     padding: 4px;
@@ -222,11 +222,11 @@ QComboBox QAbstractItemView {{
 
 /* ── Checkboxes ── */
 QCheckBox {{
-    font-size: 12px; color: {t["text"]}; font-weight: 500; spacing: 10px;
+    font-size: 12px; color: {t["text"]}; font-weight: 500; spacing: 8px;
 }}
 QCheckBox::indicator {{
-    width: 20px; height: 20px; border-radius: 6px;
-    border: 1.5px solid {t["check_border"]}; background-color: {t["field_bg"]};
+    width: 18px; height: 18px; border-radius: 5px;
+    border: 1px solid {t["check_border"]}; background-color: {t["field_bg"]};
 }}
 QCheckBox::indicator:hover {{ border-color: {t["check_active"]}; }}
 QCheckBox::indicator:checked {{
@@ -235,26 +235,26 @@ QCheckBox::indicator:checked {{
 
 /* ── Sliders ── */
 QSlider::groove:horizontal {{
-    border: none; height: 5px; background: {t["slider_track"]}; border-radius: 2px;
+    border: none; height: 4px; background: {t["slider_track"]}; border-radius: 2px;
 }}
 QSlider::sub-page:horizontal {{
     background: {t["slider_fill"]}; border-radius: 2px;
 }}
 QSlider::handle:horizontal {{
     background: {t["slider_knob"]};
-    border: 2px solid {t["slider_fill"]};
-    width: 18px; margin-top: -7px; margin-bottom: -7px; border-radius: 9px;
+    border: 1.5px solid {t["slider_fill"]};
+    width: 16px; margin-top: -6px; margin-bottom: -6px; border-radius: 8px;
 }}
 QSlider::handle:horizontal:hover {{ background: {t["slider_fill"]}; }}
 
 /* ── Buttons ── */
 QPushButton {{
-    font-family: "Segoe UI Variable", "Segoe UI", "SF Pro Display", sans-serif;
-    font-size: 13px; font-weight: 600; border-radius: 10px; padding: 9px 18px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", sans-serif;
+    font-size: 12px; font-weight: 500; border-radius: 8px; padding: 7px 14px;
 }}
 
 QPushButton[class="SecondaryButton"] {{
-    background-color: {t["card_bg"]}; color: {t["text"]}; border: 1.5px solid {t["card_border"]};
+    background-color: {t["card_bg"]}; color: {t["text"]}; border: 1px solid {t["card_border"]};
 }}
 QPushButton[class="SecondaryButton"]:hover {{
     background-color: {t["chip_hover"]}; border-color: {t["scroll_hover"]};
@@ -265,7 +265,7 @@ QPushButton[class="SecondaryButton"]:pressed {{
 
 QPushButton[class="PresetChip"] {{
     background-color: {t["chip_bg"]}; color: {t["text_sec"]}; border: 1px solid {t["chip_border"]};
-    border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 600;
+    border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600;
 }}
 QPushButton[class="PresetChip"]:hover {{
     background-color: {t["chip_hover"]}; border-color: {t["scroll_hover"]}; color: {t["text"]};
@@ -273,7 +273,7 @@ QPushButton[class="PresetChip"]:hover {{
 
 QPushButton[class="PrimaryButton"] {{
     background-color: {t["accent"]}; color: #FFFFFF; border: none;
-    font-size: 14px; font-weight: 700; padding: 14px 28px; border-radius: 12px;
+    font-size: 13px; font-weight: 600; padding: 11px 22px; border-radius: 8px;
 }}
 QPushButton[class="PrimaryButton"]:hover {{ background-color: {t["accent_hover"]}; }}
 QPushButton[class="PrimaryButton"]:pressed {{ background-color: {t["accent_press"]}; }}
@@ -282,7 +282,7 @@ QPushButton[class="PrimaryButton"]:disabled {{
 }}
 
 QPushButton[class="DangerButton"] {{
-    background-color: transparent; color: {t["danger"]}; border: 1.5px solid {t["danger"]};
+    background-color: transparent; color: {t["danger"]}; border: 1px solid {t["danger"]}; border-radius: 8px;
 }}
 QPushButton[class="DangerButton"]:hover {{ background-color: {t["danger_hover"]}; }}
 QPushButton[class="DangerButton"]:disabled {{
@@ -291,15 +291,13 @@ QPushButton[class="DangerButton"]:disabled {{
 
 /* ── Progress ── */
 QProgressBar {{
-    background-color: {t["slider_track"]}; border: none; border-radius: 5px; height: 10px;
+    background-color: {t["slider_track"]}; border: none; border-radius: 4px; height: 8px;
     text-align: center;
 }}
 QProgressBar::chunk {{
-    background-color: {t["accent"]}; border-radius: 5px;
+    background-color: {t["accent"]}; border-radius: 4px;
 }}
 """
-
-
 # ──────────────────────────────────────────────────────────────────────
 # Theme Toggle Switch Widget
 # ──────────────────────────────────────────────────────────────────────

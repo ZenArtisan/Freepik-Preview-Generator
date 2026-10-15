@@ -625,10 +625,13 @@ def process_folder(
             try:
                 with zipfile.ZipFile(source_path, "r") as zf:
                     for member in zf.infolist():
+                        parts = Path(member.filename).parts
+                        if any(part.startswith(".") or part == "__MACOSX" for part in parts):
+                            continue
+                        if member.is_dir() or member.filename.lower().endswith((".ds_store", "thumbs.db", "desktop.ini")):
+                            continue
                         target = (zip_tmp / member.filename).resolve()
                         if not str(target).startswith(str(zip_tmp.resolve())):
-                            continue
-                        if member.is_dir() or member.filename.startswith("__MACOSX") or Path(member.filename).name.startswith("."):
                             continue
                         target.parent.mkdir(parents=True, exist_ok=True)
                         with zf.open(member) as src, open(target, "wb") as dst:
@@ -636,7 +639,10 @@ def process_folder(
 
                 inner_files = sorted(
                     p for p in zip_tmp.rglob("*.*")
-                    if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS and p.suffix.lower() != ".zip"
+                    if p.is_file()
+                    and p.suffix.lower() in SUPPORTED_EXTENSIONS
+                    and p.suffix.lower() != ".zip"
+                    and not any(part.startswith(".") or part == "__MACOSX" for part in p.parts)
                 )
                 if not inner_files:
                     failed += 1
@@ -645,7 +651,12 @@ def process_folder(
                     if is_cancelled():
                         break
                     try:
-                        out_name = f"{source_path.stem}_{inner.stem}.jpg"
+                        rel_parts = inner.relative_to(zip_tmp).parent.parts
+                        if rel_parts:
+                            folder_slug = "_".join(rel_parts)
+                            out_name = f"{source_path.stem}_{folder_slug}_{inner.stem}.jpg"
+                        else:
+                            out_name = f"{source_path.stem}_{inner.stem}.jpg"
                         generate_file(inner, output_folder / out_name, config)
                         success += 1
                         status = f"Created {out_name}"
