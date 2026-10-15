@@ -1,0 +1,1275 @@
+from __future__ import annotations
+
+import sys
+import threading
+from pathlib import Path
+
+from PySide6.QtCore import (
+    QObject, QRunnable, QSettings, Qt, QThreadPool, Signal,
+    QTimer, QSize
+)
+from PySide6.QtGui import (
+    QPixmap, QFont, QColor, QIcon, QPainter, QPen, QBrush
+)
+from PySide6.QtWidgets import (
+    QApplication, QColorDialog, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
+    QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton,
+    QSizePolicy, QVBoxLayout, QWidget, QFrame, QScrollArea,
+    QComboBox, QSlider, QCheckBox, QToolButton
+)
+
+from processor import (
+    DEFAULT_TEXT, PreviewConfig, preview_jpeg_bytes, process_folder
+)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Theme Definitions
+# ──────────────────────────────────────────────────────────────────────
+LIGHT = "light"
+DARK = "dark"
+
+THEME = {
+    LIGHT: {
+        "bg":           "#F8F9FA",
+        "card_bg":      "#FFFFFF",
+        "card_border":  "#E5E7EB",
+        "text":         "#111827",
+        "text_sec":     "#6B7280",
+        "text_muted":   "#9CA3AF",
+        "field_bg":     "#FFFFFF",
+        "field_border": "#D1D5DB",
+        "field_focus":  "#6366F1",
+        "accent":       "#6366F1",
+        "accent_hover": "#4F46E5",
+        "accent_press": "#4338CA",
+        "danger":       "#EF4444",
+        "danger_hover": "rgba(239, 68, 68, 0.10)",
+        "chip_bg":      "#F3F4F6",
+        "chip_border":  "#E5E7EB",
+        "chip_hover":   "#E5E7EB",
+        "scroll_bg":    "#F3F4F6",
+        "scroll_handle":"#D1D5DB",
+        "scroll_hover": "#9CA3AF",
+        "slider_track": "#E5E7EB",
+        "slider_fill":  "#6366F1",
+        "slider_knob":  "#FFFFFF",
+        "check_border": "#D1D5DB",
+        "check_active": "#6366F1",
+        "preview_bg":   "#FFFFFF",
+        "preview_bdr":  "#E5E7EB",
+        "success_bg":   "#D1FAE5",
+        "success_fg":   "#065F46",
+        "fail_bg":      "#FEE2E2",
+        "fail_fg":      "#991B1B",
+        "info_bg":      "#DBEAFE",
+        "info_fg":      "#1E40AF",
+        "disabled_fg":  "#9CA3AF",
+        "disabled_bg":  "#F3F4F6",
+        "dropdown_arr": "#6B7280",
+        "toggle_bg":    "#F3F4F6",
+        "toggle_bdr":   "#E5E7EB",
+    },
+    DARK: {
+        "bg":           "#111111",
+        "card_bg":      "#1A1A1A",
+        "card_border":  "#2A2A2A",
+        "text":         "#F3F4F6",
+        "text_sec":     "#A1A1AA",
+        "text_muted":   "#71717A",
+        "field_bg":     "#222222",
+        "field_border": "#333333",
+        "field_focus":  "#818CF8",
+        "accent":       "#818CF8",
+        "accent_hover": "#6366F1",
+        "accent_press": "#4F46E5",
+        "danger":       "#F87171",
+        "danger_hover": "rgba(248, 113, 113, 0.12)",
+        "chip_bg":      "#2A2A2A",
+        "chip_border":  "#333333",
+        "chip_hover":   "#3A3A3A",
+        "scroll_bg":    "#1A1A1A",
+        "scroll_handle":"#3A3A3A",
+        "scroll_hover": "#555555",
+        "slider_track": "#333333",
+        "slider_fill":  "#818CF8",
+        "slider_knob":  "#F3F4F6",
+        "check_border": "#444444",
+        "check_active": "#818CF8",
+        "preview_bg":   "#0D0D0D",
+        "preview_bdr":  "#2A2A2A",
+        "success_bg":   "#064E3B",
+        "success_fg":   "#6EE7B7",
+        "fail_bg":      "#7F1D1D",
+        "fail_fg":      "#FCA5A5",
+        "info_bg":      "#1E3A5F",
+        "info_fg":      "#93C5FD",
+        "disabled_fg":  "#555555",
+        "disabled_bg":  "#1A1A1A",
+        "dropdown_arr": "#A1A1AA",
+        "toggle_bg":    "#2A2A2A",
+        "toggle_bdr":   "#333333",
+    },
+}
+
+
+def build_stylesheet(t: dict) -> str:
+    return f"""
+QMainWindow {{
+    background-color: {t["bg"]};
+}}
+
+QWidget#CentralWidget {{
+    background-color: {t["bg"]};
+}}
+
+/* ── Scrollbars ── */
+QScrollArea {{
+    border: none;
+    background-color: transparent;
+}}
+QScrollArea > QWidget > QWidget {{
+    background-color: transparent;
+}}
+QScrollBar:vertical {{
+    border: none; background: {t["scroll_bg"]}; width: 7px; border-radius: 3px; margin: 2px 0;
+}}
+QScrollBar::handle:vertical {{
+    background: {t["scroll_handle"]}; border-radius: 3px; min-height: 28px;
+}}
+QScrollBar::handle:vertical:hover {{ background: {t["scroll_hover"]}; }}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
+QScrollBar:horizontal {{
+    border: none; background: {t["scroll_bg"]}; height: 7px; border-radius: 3px; margin: 0 2px;
+}}
+QScrollBar::handle:horizontal {{
+    background: {t["scroll_handle"]}; border-radius: 3px; min-width: 28px;
+}}
+QScrollBar::handle:horizontal:hover {{ background: {t["scroll_hover"]}; }}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0px; }}
+
+/* ── Cards ── */
+QFrame[class="Card"] {{
+    background-color: {t["card_bg"]};
+    border: 1px solid {t["card_border"]};
+    border-radius: 14px;
+}}
+
+/* ── Labels ── */
+QLabel {{
+    color: {t["text"]};
+    font-family: "Segoe UI Variable", "Segoe UI", "SF Pro Display", "Helvetica Neue", sans-serif;
+}}
+QLabel[class="CardTitle"] {{
+    font-size: 14px; font-weight: 700; color: {t["text"]}; letter-spacing: -0.2px;
+}}
+QLabel[class="FieldLabel"] {{
+    font-size: 12px; font-weight: 600; color: {t["text_sec"]};
+}}
+QLabel[class="HelpText"] {{
+    font-size: 11px; color: {t["text_muted"]};
+}}
+
+/* ── Inputs ── */
+QLineEdit {{
+    background-color: {t["field_bg"]};
+    color: {t["text"]};
+    border: 1.5px solid {t["field_border"]};
+    border-radius: 10px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-family: "Segoe UI Variable", "Segoe UI", "SF Pro Display", sans-serif;
+    selection-background-color: {t["accent"]};
+    selection-color: #FFFFFF;
+}}
+QLineEdit:hover {{ border-color: {t["scroll_hover"]}; }}
+QLineEdit:focus {{ border-color: {t["field_focus"]}; }}
+QLineEdit:disabled {{
+    background-color: {t["disabled_bg"]}; color: {t["disabled_fg"]}; border-color: {t["card_border"]};
+}}
+
+/* ── Combos ── */
+QComboBox {{
+    background-color: {t["field_bg"]};
+    color: {t["text"]};
+    border: 1.5px solid {t["field_border"]};
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-family: "Segoe UI Variable", "Segoe UI", "SF Pro Display", sans-serif;
+    min-height: 20px;
+}}
+QComboBox:hover {{ border-color: {t["scroll_hover"]}; }}
+QComboBox:focus {{ border-color: {t["field_focus"]}; }}
+QComboBox::drop-down {{
+    subcontrol-origin: padding; subcontrol-position: top right; width: 28px; border-left: none;
+}}
+QComboBox::down-arrow {{
+    image: none;
+    border-left: 4px solid transparent; border-right: 4px solid transparent;
+    border-top: 5px solid {t["dropdown_arr"]}; margin-right: 10px;
+}}
+QComboBox QAbstractItemView {{
+    background-color: {t["card_bg"]};
+    color: {t["text"]};
+    border: 1px solid {t["card_border"]};
+    border-radius: 10px;
+    selection-background-color: {t["accent"]};
+    selection-color: #FFFFFF;
+    padding: 4px;
+}}
+
+/* ── Checkboxes ── */
+QCheckBox {{
+    font-size: 12px; color: {t["text"]}; font-weight: 500; spacing: 10px;
+}}
+QCheckBox::indicator {{
+    width: 20px; height: 20px; border-radius: 6px;
+    border: 1.5px solid {t["check_border"]}; background-color: {t["field_bg"]};
+}}
+QCheckBox::indicator:hover {{ border-color: {t["check_active"]}; }}
+QCheckBox::indicator:checked {{
+    background-color: {t["check_active"]}; border-color: {t["check_active"]};
+}}
+
+/* ── Sliders ── */
+QSlider::groove:horizontal {{
+    border: none; height: 5px; background: {t["slider_track"]}; border-radius: 2px;
+}}
+QSlider::sub-page:horizontal {{
+    background: {t["slider_fill"]}; border-radius: 2px;
+}}
+QSlider::handle:horizontal {{
+    background: {t["slider_knob"]};
+    border: 2px solid {t["slider_fill"]};
+    width: 18px; margin-top: -7px; margin-bottom: -7px; border-radius: 9px;
+}}
+QSlider::handle:horizontal:hover {{ background: {t["slider_fill"]}; }}
+
+/* ── Buttons ── */
+QPushButton {{
+    font-family: "Segoe UI Variable", "Segoe UI", "SF Pro Display", sans-serif;
+    font-size: 13px; font-weight: 600; border-radius: 10px; padding: 9px 18px;
+}}
+
+QPushButton[class="SecondaryButton"] {{
+    background-color: {t["card_bg"]}; color: {t["text"]}; border: 1.5px solid {t["card_border"]};
+}}
+QPushButton[class="SecondaryButton"]:hover {{
+    background-color: {t["chip_hover"]}; border-color: {t["scroll_hover"]};
+}}
+QPushButton[class="SecondaryButton"]:pressed {{
+    background-color: {t["slider_track"]};
+}}
+
+QPushButton[class="PresetChip"] {{
+    background-color: {t["chip_bg"]}; color: {t["text_sec"]}; border: 1px solid {t["chip_border"]};
+    border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 600;
+}}
+QPushButton[class="PresetChip"]:hover {{
+    background-color: {t["chip_hover"]}; border-color: {t["scroll_hover"]}; color: {t["text"]};
+}}
+
+QPushButton[class="PrimaryButton"] {{
+    background-color: {t["accent"]}; color: #FFFFFF; border: none;
+    font-size: 14px; font-weight: 700; padding: 14px 28px; border-radius: 12px;
+}}
+QPushButton[class="PrimaryButton"]:hover {{ background-color: {t["accent_hover"]}; }}
+QPushButton[class="PrimaryButton"]:pressed {{ background-color: {t["accent_press"]}; }}
+QPushButton[class="PrimaryButton"]:disabled {{
+    background-color: {t["disabled_fg"]}; color: {t["disabled_bg"]};
+}}
+
+QPushButton[class="DangerButton"] {{
+    background-color: transparent; color: {t["danger"]}; border: 1.5px solid {t["danger"]};
+}}
+QPushButton[class="DangerButton"]:hover {{ background-color: {t["danger_hover"]}; }}
+QPushButton[class="DangerButton"]:disabled {{
+    color: {t["disabled_fg"]}; border-color: {t["disabled_fg"]};
+}}
+
+/* ── Progress ── */
+QProgressBar {{
+    background-color: {t["slider_track"]}; border: none; border-radius: 5px; height: 10px;
+    text-align: center;
+}}
+QProgressBar::chunk {{
+    background-color: {t["accent"]}; border-radius: 5px;
+}}
+"""
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Theme Toggle Switch Widget
+# ──────────────────────────────────────────────────────────────────────
+class ThemeSwitch(QWidget):
+    """A custom animated-looking toggle switch for dark/light mode."""
+    toggled = Signal(bool)  # True = dark mode
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._is_dark = False
+        self.setFixedSize(72, 36)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    @property
+    def is_dark(self) -> bool:
+        return self._is_dark
+
+    def set_dark(self, dark: bool) -> None:
+        self._is_dark = dark
+        self.update()
+
+    def mousePressEvent(self, event) -> None:
+        self._is_dark = not self._is_dark
+        self.update()
+        self.toggled.emit(self._is_dark)
+
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        r = h / 2
+
+        # Track
+        if self._is_dark:
+            track_color = QColor("#333333")
+        else:
+            track_color = QColor("#E5E7EB")
+        p.setBrush(QBrush(track_color))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, w, h, r, r)
+
+        # Knob
+        knob_margin = 3
+        knob_d = h - knob_margin * 2
+        knob_x = (w - knob_d - knob_margin) if self._is_dark else knob_margin
+        knob_y = knob_margin
+
+        p.setBrush(QBrush(QColor("#FFFFFF") if not self._is_dark else QColor("#111111")))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(int(knob_x), int(knob_y), int(knob_d), int(knob_d))
+
+        # Icon — sun or moon
+        icon_font = QFont("Segoe UI Emoji", 14)
+        p.setFont(icon_font)
+        if self._is_dark:
+            p.setPen(QPen(QColor("#FBBF24")))
+            p.drawText(int(knob_margin + 4), 0, int(knob_d), h, Qt.AlignmentFlag.AlignCenter, "☀")
+        else:
+            p.setPen(QPen(QColor("#6366F1")))
+            p.drawText(int(w - knob_d - knob_margin - 4), 0, int(knob_d), h, Qt.AlignmentFlag.AlignCenter, "🌙")
+
+        p.end()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Interactive Color Swatch Button
+# ──────────────────────────────────────────────────────────────────────
+class ColorSwatchButton(QPushButton):
+    colorChanged = Signal(QColor)
+
+    def __init__(self, initial_color: str | QColor = "#FFFFFF", title: str = "Select Color", parent=None):
+        super().__init__(parent)
+        self._color = QColor(initial_color)
+        self._title = title
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedHeight(32)
+        self.setMinimumWidth(88)
+        self.update_style()
+        self.clicked.connect(self._on_click)
+
+    def color(self) -> QColor:
+        return self._color
+
+    def rgb_tuple(self) -> tuple[int, int, int]:
+        return (self._color.red(), self._color.green(), self._color.blue())
+
+    def set_color(self, new_color: str | QColor) -> None:
+        c = QColor(new_color)
+        if c.isValid() and c != self._color:
+            self._color = c
+            self.update_style()
+            self.colorChanged.emit(self._color)
+
+    def update_style(self) -> None:
+        hex_code = self._color.name().upper()
+        lum = self._color.red() * 0.299 + self._color.green() * 0.587 + self._color.blue() * 0.114
+        fg = "#FFFFFF" if lum < 140 else "#111111"
+        border = "#6366F1" if hex_code in ("#FFFFFF", "#F8FAFC", "#F1F5F9", "#F3F4F6") else hex_code
+        self.setText(f"  {hex_code}  ")
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {hex_code};
+                color: {fg};
+                border: 2px solid {border};
+                border-radius: 8px;
+                font-weight: 700;
+                font-size: 11px;
+                padding: 4px 10px;
+            }}
+            QPushButton:hover {{
+                border-color: #6366F1;
+            }}
+        """)
+
+    def _on_click(self) -> None:
+        dialog = QColorDialog(self._color, self.window())
+        dialog.setWindowTitle(self._title)
+        if dialog.exec() == QColorDialog.DialogCode.Accepted:
+            selected = dialog.selectedColor()
+            if selected.isValid():
+                self.set_color(selected)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Background Worker
+# ──────────────────────────────────────────────────────────────────────
+class WorkerSignals(QObject):
+    progress = Signal(int, int, str)
+    finished = Signal(int, int, list, bool)
+    failed = Signal(str)
+
+
+class BatchWorker(QRunnable):
+    def __init__(self, input_folder: Path, output_folder: Path, config: PreviewConfig) -> None:
+        super().__init__()
+        self.input_folder = input_folder
+        self.output_folder = output_folder
+        self.config = config
+        self.signals = WorkerSignals()
+        self.cancel_event = threading.Event()
+
+    def cancel(self) -> None:
+        self.cancel_event.set()
+
+    def run(self) -> None:
+        try:
+            success, failed, errors = process_folder(
+                self.input_folder,
+                self.output_folder,
+                self.config,
+                lambda current, total, status: self.signals.progress.emit(current, total, status),
+                self.cancel_event.is_set,
+            )
+            self.signals.finished.emit(success, failed, errors, self.cancel_event.is_set())
+        except Exception as exc:
+            self.signals.failed.emit(str(exc))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Main Application Window
+# ──────────────────────────────────────────────────────────────────────
+class MainWindow(QMainWindow):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("PreviewGen")
+        self.resize(1280, 860)
+        self.setMinimumSize(1000, 700)
+
+        self.settings = QSettings("MustaqeemTools", "PreviewGen")
+        self.thread_pool = QThreadPool.globalInstance()
+        self.thread_pool.setMaxThreadCount(2)
+        self.worker: BatchWorker | None = None
+        self.preview_source: Path | None = None
+        self._raw_pixmap: QPixmap | None = None
+        self._fit_to_view = True
+        self._current_theme = LIGHT
+
+        # Debounce timer
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(120)
+        self._preview_timer.timeout.connect(self._do_refresh_preview)
+
+        self._build_ui()
+        self._load_saved_settings()
+
+    # ──────────────────────────────────────────────────────────────────
+    # UI Construction
+    # ──────────────────────────────────────────────────────────────────
+    def _build_ui(self) -> None:
+        central = QWidget()
+        central.setObjectName("CentralWidget")
+        self.setCentralWidget(central)
+
+        root = QVBoxLayout(central)
+        root.setContentsMargins(24, 18, 24, 18)
+        root.setSpacing(16)
+
+        # ─── Header ───
+        header = QHBoxLayout()
+        header.setSpacing(12)
+
+        title_col = QVBoxLayout()
+        title_col.setSpacing(2)
+        self._app_title = QLabel("PreviewGen")
+        self._app_title.setStyleSheet("font-size: 24px; font-weight: 800;")
+        self._app_sub = QLabel("Create marketplace-ready JPG previews with customizable diagonal backgrounds & text")
+        self._app_sub.setStyleSheet("font-size: 13px;")
+        title_col.addWidget(self._app_title)
+        title_col.addWidget(self._app_sub)
+        header.addLayout(title_col)
+        header.addStretch()
+
+        # Theme toggle
+        self.theme_switch = ThemeSwitch()
+        self.theme_switch.toggled.connect(self._on_theme_toggled)
+        header.addWidget(self.theme_switch)
+
+        root.addLayout(header)
+
+        # ─── Two-Column Split ───
+        columns = QHBoxLayout()
+        columns.setSpacing(18)
+
+        # LEFT: scrollable controls
+        left_scroll = QScrollArea()
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFixedWidth(465)
+        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        left_content = QWidget()
+        left = QVBoxLayout(left_content)
+        left.setContentsMargins(0, 0, 12, 0)
+        left.setSpacing(16)
+
+        # CARD 1 — Folders
+        left.addWidget(self._build_folders_card())
+        # CARD 2 — Background
+        left.addWidget(self._build_background_card())
+        # CARD 3 — Text
+        left.addWidget(self._build_text_card())
+        # CARD 4 — Actions
+        left.addWidget(self._build_actions_card())
+        left.addStretch()
+
+        left_scroll.setWidget(left_content)
+        columns.addWidget(left_scroll)
+
+        # RIGHT: preview
+        columns.addWidget(self._build_preview_card(), 1)
+
+        root.addLayout(columns, 1)
+
+    # ── Card builders ──
+
+    def _card(self) -> tuple[QFrame, QVBoxLayout]:
+        frame = QFrame()
+        frame.setProperty("class", "Card")
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(20, 18, 20, 18)
+        lay.setSpacing(14)
+        return frame, lay
+
+    def _section_title(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setProperty("class", "CardTitle")
+        return lbl
+
+    def _field_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setProperty("class", "FieldLabel")
+        return lbl
+
+    def _build_folders_card(self) -> QFrame:
+        card, lay = self._card()
+        lay.addWidget(self._section_title("1 ·  Folders"))
+
+        lay.addWidget(self._field_label("Input PNG Folder"))
+        in_row = QHBoxLayout()
+        in_row.setSpacing(8)
+        self.input_edit = QLineEdit()
+        self.input_edit.setPlaceholderText("Folder containing transparent PNGs")
+        self.input_browse_btn = QPushButton("Browse…")
+        self.input_browse_btn.setProperty("class", "SecondaryButton")
+        self.input_browse_btn.clicked.connect(self.choose_input)
+        in_row.addWidget(self.input_edit, 1)
+        in_row.addWidget(self.input_browse_btn)
+        lay.addLayout(in_row)
+
+        self.same_folder_chk = QCheckBox("Save preview JPGs in the same folder as PNGs")
+        self.same_folder_chk.toggled.connect(self.on_same_folder_toggled)
+        lay.addWidget(self.same_folder_chk)
+
+        self.out_lbl = self._field_label("Output JPG Folder")
+        lay.addWidget(self.out_lbl)
+        out_row = QHBoxLayout()
+        out_row.setSpacing(8)
+        self.output_edit = QLineEdit()
+        self.output_edit.setPlaceholderText("Destination folder for previews")
+        self.output_browse_btn = QPushButton("Browse…")
+        self.output_browse_btn.setProperty("class", "SecondaryButton")
+        self.output_browse_btn.clicked.connect(self.choose_output)
+        self.output_open_btn = QPushButton("Open")
+        self.output_open_btn.setProperty("class", "SecondaryButton")
+        self.output_open_btn.setToolTip("Open output folder in file manager")
+        self.output_open_btn.clicked.connect(self.open_output_folder)
+        out_row.addWidget(self.output_edit, 1)
+        out_row.addWidget(self.output_browse_btn)
+        out_row.addWidget(self.output_open_btn)
+        lay.addLayout(out_row)
+        return card
+
+    def _build_background_card(self) -> QFrame:
+        card, lay = self._card()
+        lay.addWidget(self._section_title("2 ·  Background Triangle & Colors"))
+
+        lay.addWidget(self._field_label("Diagonal Split Direction"))
+        self.triangle_combo = QComboBox()
+        self.triangle_combo.addItem("Left Solid / Right Transparent (Recommended)", True)
+        self.triangle_combo.addItem("Left Transparent / Right Solid", False)
+        self.triangle_combo.currentIndexChanged.connect(self.schedule_preview)
+        lay.addWidget(self.triangle_combo)
+
+        lay.addWidget(self._field_label("Solid Background Color"))
+        solid_row = QHBoxLayout()
+        solid_row.setSpacing(6)
+        self.solid_color_btn = ColorSwatchButton("#FFFFFF", "Choose Solid Background Color")
+        self.solid_color_btn.colorChanged.connect(self.schedule_preview)
+        solid_row.addWidget(self.solid_color_btn)
+        for name, color in [("White", "#FFFFFF"), ("Off-White", "#F8FAFC"), ("Light Gray", "#E2E8F0"), ("Dark", "#1E293B")]:
+            btn = QPushButton(name)
+            btn.setProperty("class", "PresetChip")
+            btn.clicked.connect(lambda _, c=color: self.solid_color_btn.set_color(c))
+            solid_row.addWidget(btn)
+        solid_row.addStretch()
+        lay.addLayout(solid_row)
+        return card
+
+    def _build_text_card(self) -> QFrame:
+        card, lay = self._card()
+        lay.addWidget(self._section_title("3 ·  Watermark Text & Customization"))
+
+        lay.addWidget(self._field_label("Label Content (leave empty for no text)"))
+        self.text_edit = QLineEdit(DEFAULT_TEXT)
+        self.text_edit.setPlaceholderText("e.g. 100% TRANSPARENT (or blank for none)")
+        self.text_edit.textChanged.connect(self.schedule_preview)
+        lay.addWidget(self.text_edit)
+
+        lay.addWidget(self._field_label("Text Position"))
+        self.position_combo = QComboBox()
+        self.position_combo.addItem("Top-Left Corner (Recommended)", "top-left")
+        self.position_combo.addItem("Top-Right Corner", "top-right")
+        self.position_combo.addItem("Center of Image", "center")
+        self.position_combo.addItem("Bottom-Left Corner", "bottom-left")
+        self.position_combo.addItem("Bottom-Right Corner", "bottom-right")
+        self.position_combo.currentIndexChanged.connect(self.schedule_preview)
+        lay.addWidget(self.position_combo)
+
+        lay.addWidget(self._field_label("Text Fill Color"))
+        t_color_row = QHBoxLayout()
+        t_color_row.setSpacing(6)
+        self.text_color_btn = ColorSwatchButton("#FFFFFF", "Choose Text Color")
+        self.text_color_btn.colorChanged.connect(self.schedule_preview)
+        t_color_row.addWidget(self.text_color_btn)
+        for name, color in [("White", "#FFFFFF"), ("Black", "#0F172A"), ("Yellow", "#FACC15")]:
+            btn = QPushButton(name)
+            btn.setProperty("class", "PresetChip")
+            btn.clicked.connect(lambda _, c=color: self.text_color_btn.set_color(c))
+            t_color_row.addWidget(btn)
+        t_color_row.addStretch()
+        lay.addLayout(t_color_row)
+
+        # Font scale
+        scale_hdr = QHBoxLayout()
+        scale_hdr.addWidget(self._field_label("Font Size Scale"))
+        scale_hdr.addStretch()
+        self.scale_val_lbl = QLabel("100%")
+        self.scale_val_lbl.setStyleSheet("font-size: 12px; font-weight: 700;")
+        scale_hdr.addWidget(self.scale_val_lbl)
+        lay.addLayout(scale_hdr)
+
+        self.scale_slider = QSlider(Qt.Orientation.Horizontal)
+        self.scale_slider.setRange(50, 180)
+        self.scale_slider.setValue(100)
+        self.scale_slider.valueChanged.connect(self.on_scale_changed)
+        lay.addWidget(self.scale_slider)
+
+        # Outline
+        self.outline_chk = QCheckBox("Add Outline / Stroke to Text")
+        self.outline_chk.setChecked(True)
+        self.outline_chk.toggled.connect(self.on_outline_toggled)
+        lay.addWidget(self.outline_chk)
+
+        self.outline_options_widget = QWidget()
+        ol = QVBoxLayout(self.outline_options_widget)
+        ol.setContentsMargins(0, 0, 0, 0)
+        ol.setSpacing(10)
+
+        ol.addWidget(self._field_label("Outline Color"))
+        o_row = QHBoxLayout()
+        o_row.setSpacing(6)
+        self.outline_color_btn = ColorSwatchButton("#000000", "Choose Outline Color")
+        self.outline_color_btn.colorChanged.connect(self.schedule_preview)
+        o_row.addWidget(self.outline_color_btn)
+        for name, color in [("Black", "#000000"), ("White", "#FFFFFF"), ("Dark Gray", "#334155")]:
+            btn = QPushButton(name)
+            btn.setProperty("class", "PresetChip")
+            btn.clicked.connect(lambda _, c=color: self.outline_color_btn.set_color(c))
+            o_row.addWidget(btn)
+        o_row.addStretch()
+        ol.addLayout(o_row)
+
+        thick_hdr = QHBoxLayout()
+        thick_hdr.addWidget(self._field_label("Outline Thickness"))
+        thick_hdr.addStretch()
+        self.thick_val_lbl = QLabel("Normal")
+        self.thick_val_lbl.setStyleSheet("font-size: 12px; font-weight: 700;")
+        thick_hdr.addWidget(self.thick_val_lbl)
+        ol.addLayout(thick_hdr)
+        self.thick_slider = QSlider(Qt.Orientation.Horizontal)
+        self.thick_slider.setRange(1, 5)
+        self.thick_slider.setValue(2)
+        self.thick_slider.valueChanged.connect(self.on_thickness_changed)
+        ol.addWidget(self.thick_slider)
+        lay.addWidget(self.outline_options_widget)
+
+        # Opacity
+        op_hdr = QHBoxLayout()
+        op_hdr.addWidget(self._field_label("Text Opacity"))
+        op_hdr.addStretch()
+        self.op_val_lbl = QLabel("90%")
+        self.op_val_lbl.setStyleSheet("font-size: 12px; font-weight: 700;")
+        op_hdr.addWidget(self.op_val_lbl)
+        lay.addLayout(op_hdr)
+        self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.opacity_slider.setRange(10, 100)
+        self.opacity_slider.setValue(90)
+        self.opacity_slider.valueChanged.connect(self.on_opacity_changed)
+        lay.addWidget(self.opacity_slider)
+        return card
+
+    def _build_actions_card(self) -> QFrame:
+        card, lay = self._card()
+        lay.addWidget(self._section_title("4 ·  Process Previews"))
+
+        self.generate_btn = QPushButton("Generate All JPG Previews")
+        self.generate_btn.setProperty("class", "PrimaryButton")
+        self.generate_btn.clicked.connect(self.start_processing)
+        lay.addWidget(self.generate_btn)
+
+        self.cancel_btn = QPushButton("Cancel Processing")
+        self.cancel_btn.setProperty("class", "DangerButton")
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.clicked.connect(self.cancel_processing)
+        lay.addWidget(self.cancel_btn)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(False)
+        lay.addWidget(self.progress_bar)
+
+        self.stats_widget = QWidget()
+        sl = QHBoxLayout(self.stats_widget)
+        sl.setContentsMargins(0, 4, 0, 4)
+        sl.setSpacing(8)
+        self.chip_success = QLabel("0 Success")
+        self.chip_failed = QLabel("0 Failed")
+        self.chip_pending = QLabel("0 Total")
+        sl.addWidget(self.chip_success)
+        sl.addWidget(self.chip_failed)
+        sl.addWidget(self.chip_pending)
+        sl.addStretch()
+        self.stats_widget.setVisible(False)
+        lay.addWidget(self.stats_widget)
+
+        self.status_lbl = QLabel("Ready to process")
+        self.status_lbl.setStyleSheet("font-size: 12px;")
+        self.status_lbl.setWordWrap(True)
+        lay.addWidget(self.status_lbl)
+        return card
+
+    def _build_preview_card(self) -> QFrame:
+        card, lay = self._card()
+
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(10)
+        toolbar.addWidget(self._section_title("Live Preview"))
+        toolbar.addStretch()
+
+        self.fit_view_btn = QPushButton("Fit to View")
+        self.fit_view_btn.setProperty("class", "SecondaryButton")
+        self.fit_view_btn.setCheckable(True)
+        self.fit_view_btn.setChecked(True)
+        self.fit_view_btn.clicked.connect(self.toggle_view_mode)
+        toolbar.addWidget(self.fit_view_btn)
+
+        self.refresh_btn = QPushButton("Refresh")
+        self.refresh_btn.setProperty("class", "SecondaryButton")
+        self.refresh_btn.clicked.connect(self.schedule_preview)
+        toolbar.addWidget(self.refresh_btn)
+        lay.addLayout(toolbar)
+
+        self.preview_scroll = QScrollArea()
+        self.preview_scroll.setWidgetResizable(True)
+        self.preview_scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.preview_label = QLabel("Select an input folder to view preview")
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.preview_scroll.setWidget(self.preview_label)
+        lay.addWidget(self.preview_scroll, 1)
+
+        info_row = QHBoxLayout()
+        info_row.setSpacing(12)
+        self.file_info_lbl = QLabel("No file loaded")
+        self.file_info_lbl.setStyleSheet("font-size: 12px; font-weight: 600;")
+        self.res_info_lbl = QLabel("")
+        self.res_info_lbl.setStyleSheet("font-size: 12px;")
+        info_row.addWidget(self.file_info_lbl)
+        info_row.addStretch()
+        info_row.addWidget(self.res_info_lbl)
+        lay.addLayout(info_row)
+        return card
+
+    # ──────────────────────────────────────────────────────────────────
+    # Theme Management
+    # ──────────────────────────────────────────────────────────────────
+    def _apply_theme(self, theme: str) -> None:
+        t = THEME[theme]
+        app = QApplication.instance()
+        if app:
+            app.setStyleSheet(build_stylesheet(t))
+
+        self.theme_switch.set_dark(theme == DARK)
+
+        self.preview_scroll.setStyleSheet(
+            f"QScrollArea {{ background-color: {t['preview_bg']}; "
+            f"border: 1px solid {t['preview_bdr']}; border-radius: 10px; }}"
+        )
+        self.preview_label.setStyleSheet(
+            f"color: {t['text_muted']}; font-size: 14px; background: transparent;"
+        )
+
+        # Status chips
+        self.chip_success.setStyleSheet(
+            f"background: {t['success_bg']}; color: {t['success_fg']}; "
+            "padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 11px;"
+        )
+        self.chip_failed.setStyleSheet(
+            f"background: {t['fail_bg']}; color: {t['fail_fg']}; "
+            "padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 11px;"
+        )
+        self.chip_pending.setStyleSheet(
+            f"background: {t['info_bg']}; color: {t['info_fg']}; "
+            "padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 11px;"
+        )
+
+        # Accent-coloured value labels
+        for lbl in (self.scale_val_lbl, self.thick_val_lbl, self.op_val_lbl):
+            lbl.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {t['accent']};")
+
+        self.status_lbl.setStyleSheet(f"font-size: 12px; color: {t['text_muted']};")
+        self.file_info_lbl.setStyleSheet(f"font-size: 12px; color: {t['text_sec']}; font-weight: 600;")
+        self.res_info_lbl.setStyleSheet(f"font-size: 12px; color: {t['text_muted']};")
+
+    def _on_theme_toggled(self, is_dark: bool) -> None:
+        self._current_theme = DARK if is_dark else LIGHT
+        self._apply_theme(self._current_theme)
+        self._save_settings()
+
+    # ──────────────────────────────────────────────────────────────────
+    # Settings & State Persistence
+    # ──────────────────────────────────────────────────────────────────
+    def _load_saved_settings(self) -> None:
+        last_input = str(self.settings.value("input", ""))
+        last_output = str(self.settings.value("output", ""))
+        saved_text = str(self.settings.value("text", DEFAULT_TEXT))
+        saved_pos = str(self.settings.value("position", "top-left"))
+        saved_op = int(self.settings.value("opacity", 90))
+        same_folder = bool(self.settings.value("same_folder", False))
+        invert_bg = bool(self.settings.value("invert_triangles", True))
+        solid_col = str(self.settings.value("solid_color", "#FFFFFF"))
+        text_col = str(self.settings.value("text_color", "#FFFFFF"))
+        has_out = bool(self.settings.value("has_outline", True))
+        out_col = str(self.settings.value("outline_color", "#000000"))
+        out_thick = int(self.settings.value("outline_thickness", 2))
+        f_scale = int(self.settings.value("font_scale", 100))
+        saved_theme = str(self.settings.value("theme", LIGHT))
+
+        self._current_theme = saved_theme
+        self._apply_theme(saved_theme)
+
+        if last_input:
+            self.input_edit.setText(last_input)
+        if last_output:
+            self.output_edit.setText(last_output)
+
+        self.text_edit.setText(saved_text)
+
+        idx = self.position_combo.findData(saved_pos)
+        if idx >= 0:
+            self.position_combo.setCurrentIndex(idx)
+
+        self.opacity_slider.setValue(max(10, min(100, saved_op)))
+        self.op_val_lbl.setText(f"{self.opacity_slider.value()}%")
+
+        tri_idx = self.triangle_combo.findData(invert_bg)
+        if tri_idx >= 0:
+            self.triangle_combo.setCurrentIndex(tri_idx)
+
+        self.solid_color_btn.set_color(solid_col)
+        self.text_color_btn.set_color(text_col)
+
+        self.outline_chk.setChecked(has_out)
+        self.outline_options_widget.setVisible(has_out)
+        self.outline_color_btn.set_color(out_col)
+
+        self.thick_slider.setValue(max(1, min(5, out_thick)))
+        self.on_thickness_changed(self.thick_slider.value())
+
+        self.scale_slider.setValue(max(50, min(180, f_scale)))
+        self.scale_val_lbl.setText(f"{self.scale_slider.value()}%")
+
+        self.same_folder_chk.setChecked(same_folder)
+        if same_folder and last_input:
+            self.output_edit.setText(last_input)
+            self.output_edit.setEnabled(False)
+            self.output_browse_btn.setEnabled(False)
+
+        if last_input and Path(last_input).is_dir():
+            QTimer.singleShot(150, self.load_first_preview)
+
+    def _save_settings(self) -> None:
+        self.settings.setValue("input", self.input_edit.text().strip())
+        self.settings.setValue("output", self.output_edit.text().strip())
+        self.settings.setValue("text", self.text_edit.text())
+        self.settings.setValue("position", self.position_combo.currentData())
+        self.settings.setValue("opacity", self.opacity_slider.value())
+        self.settings.setValue("same_folder", self.same_folder_chk.isChecked())
+        self.settings.setValue("invert_triangles", self.triangle_combo.currentData())
+        self.settings.setValue("solid_color", self.solid_color_btn.color().name())
+        self.settings.setValue("text_color", self.text_color_btn.color().name())
+        self.settings.setValue("has_outline", self.outline_chk.isChecked())
+        self.settings.setValue("outline_color", self.outline_color_btn.color().name())
+        self.settings.setValue("outline_thickness", self.thick_slider.value())
+        self.settings.setValue("font_scale", self.scale_slider.value())
+        self.settings.setValue("theme", self._current_theme)
+
+    def get_current_config(self) -> PreviewConfig:
+        return PreviewConfig(
+            text=self.text_edit.text(),
+            position=str(self.position_combo.currentData() or "top-left"),
+            opacity=self.opacity_slider.value() / 100.0,
+            invert_triangles=bool(self.triangle_combo.currentData()),
+            solid_color=self.solid_color_btn.rgb_tuple(),
+            text_color=self.text_color_btn.rgb_tuple(),
+            has_outline=self.outline_chk.isChecked(),
+            outline_color=self.outline_color_btn.rgb_tuple(),
+            outline_thickness=self.thick_slider.value(),
+            font_scale=self.scale_slider.value() / 100.0,
+        )
+
+    # ──────────────────────────────────────────────────────────────────
+    # User Actions & Handlers
+    # ──────────────────────────────────────────────────────────────────
+    def on_same_folder_toggled(self, checked: bool) -> None:
+        if checked:
+            in_dir = self.input_edit.text().strip()
+            if in_dir:
+                self.output_edit.setText(in_dir)
+            self.output_edit.setEnabled(False)
+            self.output_browse_btn.setEnabled(False)
+        else:
+            self.output_edit.setEnabled(True)
+            self.output_browse_btn.setEnabled(True)
+        self._save_settings()
+
+    def on_opacity_changed(self, value: int) -> None:
+        self.op_val_lbl.setText(f"{value}%")
+        self.schedule_preview()
+
+    def on_scale_changed(self, value: int) -> None:
+        self.scale_val_lbl.setText(f"{value}%")
+        self.schedule_preview()
+
+    def on_thickness_changed(self, value: int) -> None:
+        labels = {1: "Thin", 2: "Normal", 3: "Medium", 4: "Thick", 5: "Extra Bold"}
+        self.thick_val_lbl.setText(labels.get(value, f"{value}x"))
+        self.schedule_preview()
+
+    def on_outline_toggled(self, checked: bool) -> None:
+        self.outline_options_widget.setVisible(checked)
+        self.schedule_preview()
+
+    def choose_input(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose Input PNG Folder", self.input_edit.text() or str(Path.home())
+        )
+        if folder:
+            self.input_edit.setText(folder)
+            if self.same_folder_chk.isChecked() or not self.output_edit.text().strip():
+                self.output_edit.setText(folder)
+            self._save_settings()
+            self.load_first_preview()
+
+    def choose_output(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose Output JPG Folder", self.output_edit.text() or str(Path.home())
+        )
+        if folder:
+            self.output_edit.setText(folder)
+            self._save_settings()
+
+    def open_output_folder(self) -> None:
+        target = self.output_edit.text().strip() or self.input_edit.text().strip()
+        if not target:
+            return
+        folder = Path(target)
+        folder.mkdir(parents=True, exist_ok=True)
+        import os
+        if sys.platform == "win32":
+            os.startfile(str(folder))
+        elif sys.platform == "darwin":
+            import subprocess
+            subprocess.Popen(["open", str(folder)])
+        else:
+            import subprocess
+            subprocess.Popen(["xdg-open", str(folder)])
+
+    def toggle_view_mode(self) -> None:
+        self._fit_to_view = self.fit_view_btn.isChecked()
+        self.fit_view_btn.setText("Fit to View" if self._fit_to_view else "Original 100%")
+        self._update_preview_display()
+
+    # ──────────────────────────────────────────────────────────────────
+    # Preview Logic
+    # ──────────────────────────────────────────────────────────────────
+    def schedule_preview(self) -> None:
+        self._preview_timer.start()
+
+    def load_first_preview(self) -> None:
+        folder_str = self.input_edit.text().strip()
+        if not folder_str:
+            return
+        folder = Path(folder_str)
+        if not folder.is_dir():
+            self.preview_label.setText("Input folder does not exist")
+            self.file_info_lbl.setText("No file loaded")
+            self.res_info_lbl.setText("")
+            return
+
+        pngs = sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".png")
+        if not pngs:
+            self.preview_source = None
+            self.preview_label.setText(f"No PNG files found in:\n{folder.name}")
+            self.file_info_lbl.setText("No PNGs found")
+            self.res_info_lbl.setText("")
+            return
+
+        self.preview_source = pngs[0]
+        self._do_refresh_preview()
+
+    def _do_refresh_preview(self) -> None:
+        if not self.preview_source or not self.preview_source.is_file():
+            return
+
+        try:
+            config = self.get_current_config()
+            jpeg_bytes = preview_jpeg_bytes(self.preview_source, config)
+            pixmap = QPixmap()
+            if not pixmap.loadFromData(jpeg_bytes, "JPG"):
+                raise ValueError("Could not decode preview image")
+
+            self._raw_pixmap = pixmap
+            self.file_info_lbl.setText(f"Preview: {self.preview_source.name}")
+            self.res_info_lbl.setText(f"{pixmap.width()} × {pixmap.height()} px")
+            self._update_preview_display()
+        except Exception as exc:
+            self.preview_label.setText(f"Preview error:\n{exc}")
+            self.file_info_lbl.setText("Error loading preview")
+
+    def _update_preview_display(self) -> None:
+        if not self._raw_pixmap or self._raw_pixmap.isNull():
+            return
+
+        if self._fit_to_view:
+            viewport_size = self.preview_scroll.viewport().size()
+            target_w = max(100, viewport_size.width() - 20)
+            target_h = max(100, viewport_size.height() - 20)
+            scaled = self._raw_pixmap.scaled(
+                target_w, target_h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self.preview_label.setPixmap(scaled)
+            self.preview_label.adjustSize()
+        else:
+            self.preview_label.setPixmap(self._raw_pixmap)
+            self.preview_label.adjustSize()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self._fit_to_view:
+            self._update_preview_display()
+
+    # ──────────────────────────────────────────────────────────────────
+    # Batch Processing
+    # ──────────────────────────────────────────────────────────────────
+    def start_processing(self) -> None:
+        in_str = self.input_edit.text().strip()
+        out_str = self.output_edit.text().strip()
+
+        if not in_str:
+            QMessageBox.warning(self, "Missing Input", "Please select an input folder.")
+            return
+
+        input_folder = Path(in_str)
+        if not input_folder.is_dir():
+            QMessageBox.warning(self, "Invalid Input", "The input folder does not exist.")
+            return
+
+        if not out_str:
+            out_str = in_str
+            self.output_edit.setText(out_str)
+
+        output_folder = Path(out_str)
+        self._save_settings()
+
+        png_files = [p for p in input_folder.iterdir() if p.is_file() and p.suffix.lower() == ".png"]
+        if not png_files:
+            QMessageBox.warning(self, "No PNGs", "No transparent PNG files were found in the input folder.")
+            return
+
+        total = len(png_files)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.stats_widget.setVisible(True)
+        self.chip_success.setText("0 Success")
+        self.chip_failed.setText("0 Failed")
+        self.chip_pending.setText(f"{total} Total")
+
+        self.status_lbl.setText(f"Processing 1 of {total}…")
+        self.generate_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(True)
+        self.input_browse_btn.setEnabled(False)
+        self.output_browse_btn.setEnabled(False)
+
+        config = self.get_current_config()
+        self.worker = BatchWorker(input_folder, output_folder, config)
+        self.worker.signals.progress.connect(self.on_progress)
+        self.worker.signals.finished.connect(self.on_finished)
+        self.worker.signals.failed.connect(self.on_failed)
+        self.thread_pool.start(self.worker)
+
+    def cancel_processing(self) -> None:
+        if self.worker:
+            self.worker.cancel()
+            self.cancel_btn.setEnabled(False)
+            self.status_lbl.setText("Cancelling… finishing current image.")
+
+    def on_progress(self, current: int, total: int, message: str) -> None:
+        pct = round(current * 100 / total)
+        self.progress_bar.setValue(pct)
+        self.status_lbl.setText(f"{current}/{total} — {message}")
+        self.chip_success.setText(f"{current} Success")
+        self.chip_pending.setText(f"{max(0, total - current)} Remaining")
+
+    def on_finished(self, success: int, failed: int, errors: list, cancelled: bool) -> None:
+        self._set_idle()
+        out_dir = Path(self.output_edit.text().strip()).resolve()
+        heading = "Cancelled" if cancelled else "Completed"
+
+        self.chip_success.setText(f"{success} Success")
+        self.chip_failed.setText(f"{failed} Failed")
+        self.chip_pending.setText("0 Remaining")
+        self.status_lbl.setText(f"{heading}! {success} preview(s) saved in {out_dir.name}")
+
+        summary = (
+            f"<b>{heading}!</b><br><br>"
+            f"<b>Destination:</b><br>{out_dir}<br><br>"
+            f"<b>Successful:</b> {success} previews<br>"
+            f"<b>Failed:</b> {failed}"
+        )
+        if errors:
+            summary += "<br><br><b>Errors:</b><br>" + "<br>".join(errors[:8])
+            if len(errors) > 8:
+                summary += f"<br><i>…and {len(errors) - 8} more.</i>"
+
+        t = THEME[self._current_theme]
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(f"Previews {heading}")
+        msg_box.setTextFormat(Qt.TextFormat.RichText)
+        msg_box.setText(summary)
+        msg_box.setIcon(QMessageBox.Icon.Information if not cancelled else QMessageBox.Icon.Warning)
+
+        open_btn = msg_box.addButton("Open Output Folder", QMessageBox.ButtonRole.ActionRole)
+        msg_box.addButton(QMessageBox.StandardButton.Ok)
+
+        msg_box.setStyleSheet(f"""
+            QMessageBox {{ background: {t["card_bg"]}; }}
+            QLabel {{ color: {t["text"]}; font-size: 13px; }}
+            QPushButton {{
+                min-width: 100px; padding: 9px 18px; border-radius: 8px;
+                background: {t["accent"]}; color: white; font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {t["accent_hover"]}; }}
+        """)
+        msg_box.exec()
+        if msg_box.clickedButton() == open_btn:
+            self.open_output_folder()
+
+    def on_failed(self, message: str) -> None:
+        self._set_idle()
+        self.status_lbl.setText("Processing failed")
+        QMessageBox.critical(self, "Processing Failed", message)
+
+    def _set_idle(self) -> None:
+        self.worker = None
+        self.progress_bar.setVisible(False)
+        self.generate_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+        self.input_browse_btn.setEnabled(True)
+        if not self.same_folder_chk.isChecked():
+            self.output_browse_btn.setEnabled(True)
+
+    def closeEvent(self, event) -> None:
+        if self.worker:
+            self.worker.cancel()
+        self._save_settings()
+        super().closeEvent(event)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Application Entry Point
+# ──────────────────────────────────────────────────────────────────────
+def main() -> int:
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "MustaqeemTools.PreviewGen.1.0"
+            )
+        except Exception:
+            pass
+
+    app = QApplication(sys.argv)
+    app.setApplicationName("PreviewGen")
+    app.setApplicationDisplayName("PreviewGen")
+    app.setStyleSheet(build_stylesheet(THEME[LIGHT]))
+
+    # Load multi-resolution icon
+    icon_candidates = [
+        Path(__file__).resolve().parent / "app.ico",
+        Path(sys.executable).resolve().parent / "app.ico",
+        Path(getattr(sys, "_MEIPASS", "")) / "app.ico",
+    ]
+    app_icon = None
+    for cand in icon_candidates:
+        if cand.exists():
+            app_icon = QIcon(str(cand))
+            app.setWindowIcon(app_icon)
+            break
+
+    window = MainWindow()
+    if app_icon:
+        window.setWindowIcon(app_icon)
+    window.show()
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

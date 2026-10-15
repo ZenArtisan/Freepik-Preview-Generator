@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Project specific
+ideation.md
+New Text Document.txt
+New Project*.svg
+*.Zone.Identifier
+get-pip.py
+Sample-preview-image.png
+
+# Output directories
+output_jpg/
+input_png/
+*.jpg
+*.png
+
+# Allow repo assets
+!preview.png
+!preview-dark.png
+!app.ico
+
+# Build artifacts
+*.exe
+*.dmg
+*.AppImage
+*.dist/
+dist/
+
+# Logs
+*.log
+*.log.*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Packaging
+*.tar.gz
+*.whl
