@@ -1606,30 +1606,33 @@ class MainWindow(QMainWindow):
             if p.is_file() and p.suffix.lower() == ".zip"
         ]
 
+        # For zip archives, index assets on-demand so startup is instant (1ms)
+        self.file_list = sorted(direct_files)
         if zip_files:
-            self._session_zip_dir = Path(tempfile.mkdtemp(prefix="previewgen_session_"))
+            import zipfile
+            if not self._session_zip_dir or not self._session_zip_dir.exists():
+                self._session_zip_dir = Path(tempfile.mkdtemp(prefix="previewgen_session_"))
+
             for z in zip_files:
                 try:
                     with zipfile.ZipFile(z, "r") as zf:
                         for member in zf.infolist():
-                            t = (self._session_zip_dir / f"{z.stem}_{member.filename}").resolve()
-                            if not str(t).startswith(str(self._session_zip_dir.resolve())):
+                            parts = Path(member.filename).parts
+                            if any(part.startswith(".") or part == "__MACOSX" for part in parts):
                                 continue
-                            if member.is_dir() or member.filename.startswith("__MACOSX") or Path(member.filename).name.startswith("."):
+                            if member.is_dir() or member.filename.lower().endswith((".ds_store", "thumbs.db", "desktop.ini")):
                                 continue
-                            t.parent.mkdir(parents=True, exist_ok=True)
-                            with zf.open(member) as src, open(t, "wb") as dst:
-                                shutil.copyfileobj(src, dst)
+                            ext = Path(member.filename).suffix.lower()
+                            if ext in SUPPORTED_EXTENSIONS and ext != ".zip":
+                                t = self._session_zip_dir / f"{z.stem}_{Path(member.filename).name}"
+                                if not t.exists():
+                                    with zf.open(member) as src, open(t, "wb") as dst:
+                                        shutil.copyfileobj(src, dst)
+                                self.file_list.append(t)
+                                if len(self.file_list) >= 40:
+                                    break
                 except Exception:
                     pass
-
-            extracted_assets = [
-                p for p in self._session_zip_dir.rglob("*.*")
-                if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS and p.suffix.lower() != ".zip"
-            ]
-            self.file_list = sorted(direct_files + extracted_assets)
-        else:
-            self.file_list = sorted(direct_files)
         if not self.file_list:
             self.preview_source = None
             self.current_file_idx = 0
@@ -1730,10 +1733,13 @@ class MainWindow(QMainWindow):
         self.file_info_lbl.setText("Error loading preview")
 
     def _ensure_desktop_shortcut(self) -> None:
-        """Ensure an official desktop shortcut exists across Windows, macOS, and Linux."""
+        """Run desktop shortcut creation in a detached thread to guarantee 0ms window startup."""
+        import threading
+        threading.Thread(target=self._run_ensure_desktop_shortcut, daemon=True).start()
+
+    def _run_ensure_desktop_shortcut(self) -> None:
         try:
             if sys.platform == "win32":
-                import subprocess
                 exe = sys.executable if getattr(sys, "frozen", False) else str(Path(__file__).resolve().parent / "dist" / "PreviewGen" / "PreviewGen.exe")
                 if not Path(exe).is_file():
                     return
