@@ -1,5 +1,6 @@
 from __future__ import annotations
-
+import os
+import sys
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -21,6 +22,18 @@ SUPPORTED_3D_EXTENSIONS: tuple[str, ...] = (
     ".dae",
     ".blend",
 )
+SUPPORTED_CAD_EXTENSIONS: tuple[str, ...] = (
+    ".dxf",
+    ".dwg",
+    ".max",
+    ".f3d",
+    ".mb",
+    ".ma",
+    ".step",
+    ".stp",
+    ".iges",
+    ".igs",
+)
 SUPPORTED_EXTENSIONS: tuple[str, ...] = (
     ".png",
     ".webp",
@@ -30,6 +43,7 @@ SUPPORTED_EXTENSIONS: tuple[str, ...] = (
     ".svgz",
     ".psd",
     *SUPPORTED_3D_EXTENSIONS,
+    *SUPPORTED_CAD_EXTENSIONS,
     ".zip",
 )
 
@@ -69,16 +83,29 @@ def _font(size: int, font_path: str = "") -> ImageFont.ImageFont:
             return ImageFont.truetype(str(font_path), size=size)
         except Exception:
             pass
+    candidates: list[Path] = []
+    if sys.platform == "win32":
+        windir = Path(os.environ.get("WINDIR") or os.environ.get("SystemRoot") or "C:/Windows")
+        fonts_dir = windir / "Fonts"
+        for name in ("arialbd.ttf", "segoeuib.ttf", "calibrib.ttf", "arial.ttf"):
+            candidates.append(fonts_dir / name)
+    elif sys.platform == "darwin":
+        for p in (
+            "/System/Library/Fonts/SFProDisplay-Bold.otf",
+            "/System/Library/Fonts/HelveticaNeue.ttc",
+            "/Library/Fonts/Arial Bold.ttf",
+        ):
+            candidates.append(Path(p))
+    else:
+        for p in (
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        ):
+            candidates.append(Path(p))
 
-    for path in (
-        Path("C:/Windows/Fonts/arialbd.ttf"),
-        Path("C:/Windows/Fonts/segoeuib.ttf"),
-        Path("C:/Windows/Fonts/calibrib.ttf"),
-        Path("/System/Library/Fonts/SFProDisplay-Bold.otf"),
-        Path("/System/Library/Fonts/HelveticaNeue.ttc"),
-        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-    ):
-        if path.exists():
+    for path in candidates:
+        if path.is_file():
             try:
                 return ImageFont.truetype(str(path), size=size)
             except Exception:
@@ -210,11 +237,19 @@ def compose_preview(
     original = source.convert("RGBA")
     width, height = original.size
     alpha_min, alpha_max = original.getchannel("A").getextrema()
-    if alpha_min == 255:
-        raise ValueError("Image has no transparent pixels (fully opaque)")
     if alpha_max == 0:
         raise ValueError("Image is completely transparent (empty canvas)")
 
+    if alpha_min == 255:
+        # Handle CAD drawings, blueprints, or renders with uniform white/black backgrounds
+        import numpy as np
+        arr = np.array(original)
+        bg_col = arr[0, 0, :3].astype(float)
+        dist = np.linalg.norm(arr[:, :, :3].astype(float) - bg_col, axis=2)
+        if float(np.mean(dist < 15)) > 0.10:
+            alpha = np.clip((dist / 35.0) * 255.0, 0, 255).astype(np.uint8)
+            arr[:, :, 3] = alpha
+            original = Image.fromarray(arr)
     bg = make_background(
         width,
         height,
@@ -363,9 +398,256 @@ def _load_psd(source_path: Path) -> Image.Image:
         raise ValueError("Could not extract composite transparency layer from PSD")
     return composite.convert("RGBA")
 
+def _load_dxf(source_path: Path, target_dimension: int = 2400) -> Image.Image:
+    """Render an AutoCAD .dxf drawing/mesh using ezdxf and PySide6."""
+    try:
+        import ezdxf
+        from ezdxf.addons.drawing import RenderContext, Frontend
+        from ezdxf.addons.drawing.pyqt import PyQtBackend
+        from PySide6.QtWidgets import QApplication, QGraphicsScene
+        from PySide6.QtGui import QImage, QPainter
+        from PySide6.QtCore import Qt, QRectF, QByteArray, QBuffer, QIODevice
+
+        app = QApplication.instance() or QApplication([])
+        doc = ezdxf.readfile(str(source_path))
+        msp = doc.modelspace()
+
+        scene = QGraphicsScene()
+        backend = PyQtBackend(scene)
+        ctx = RenderContext(doc)
+        frontend = Frontend(ctx, backend)
+        frontend.draw_layout(msp)
+
+        rect = scene.sceneRect()
+        w = max(50, int(rect.width()))
+        h = max(50, int(rect.height()))
+        scale = min(target_dimension / max(w, h), 4.0)
+        tw = max(100, int(w * scale))
+        th = max(100, int(h * scale))
+
+        qimg = QImage(tw, th, QImage.Format.Format_ARGB32_Premultiplied)
+        qimg.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(qimg)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        scene.render(painter, QRectF(0, 0, tw, th), rect)
+        painter.end()
+
+        ba = QByteArray()
+        buf = QBuffer(ba)
+        buf.open(QIODevice.OpenModeFlag.WriteOnly)
+        qimg.save(buf, "PNG")
+        buf.close()
+
+        with Image.open(BytesIO(ba.data())) as pil_img:
+            pil_img.load()
+            return pil_img.convert("RGBA")
+    except Exception as exc:
+        raise RuntimeError(f"Could not render DXF file: {exc}")
+
+
+def extract_dwg_thumbnail(path: Path) -> Image.Image | None:
+    """Extract embedded BMP or PNG thumbnail from AutoCAD .dwg binary header."""
+    import struct
+    try:
+        with open(path, "rb") as f:
+            header = f.read(6)
+            if not header.startswith(b"AC"):
+                return None
+            f.seek(0x0D)
+            offset_val = struct.unpack("<i", f.read(4))[0]
+            next_pos = 0x14 + offset_val
+            f.seek(0, 2)
+            if next_pos >= f.tell():
+                return None
+            f.seek(next_pos)
+            byt_cnt_raw = f.read(1)
+            if not byt_cnt_raw or byt_cnt_raw[0] <= 1:
+                return None
+            for _ in range(byt_cnt_raw[0]):
+                code_raw = f.read(1)
+                if not code_raw:
+                    break
+                code = code_raw[0]
+                img_start, img_size = struct.unpack("<ii", f.read(8))
+                if code == 2:  # BMP
+                    f.seek(img_start)
+                    info_header = f.read(img_size)
+                    if len(info_header) >= 40:
+                        bi_bits = struct.unpack("<H", info_header[14:16])[0]
+                        bi_size = struct.unpack("<I", info_header[20:24])[0]
+                        c_table = (4 * (2 ** bi_bits)) if bi_bits < 9 else 0
+                        file_sz = 54 + c_table + bi_size
+                        bmp_data = b"BM" + struct.pack("<IHHI", file_sz, 0, 0, 54 + c_table) + info_header
+                        with Image.open(BytesIO(bmp_data)) as img:
+                            img.load()
+                            return img.convert("RGBA")
+                elif code == 6:  # PNG
+                    f.seek(img_start)
+                    png_data = f.read(img_size)
+                    with Image.open(BytesIO(png_data)) as img:
+                        img.load()
+                        return img.convert("RGBA")
+        return None
+    except Exception:
+        return None
+
+
+def _load_dwg(source_path: Path) -> Image.Image:
+    thumb = extract_dwg_thumbnail(source_path)
+    if thumb is not None:
+        return thumb
+    raise RuntimeError(
+        "This DWG file does not contain an embedded preview thumbnail. "
+        "In AutoCAD, save with THUMBSIZE enabled, or export as DXF."
+    )
+
+
+def extract_max_thumbnail(path: Path) -> Image.Image | None:
+    """Extract embedded viewport thumbnail from Autodesk 3ds Max (.max) OLE files."""
+    try:
+        import olefile
+        if not olefile.isOleFile(str(path)):
+            return None
+        with olefile.OleFileIO(str(path)) as ole:
+            for sname in ole.listdir():
+                s_lower = "/".join(sname).lower()
+                if "thumbnail" in s_lower or "preview" in s_lower:
+                    data = ole.openstream(sname).read()
+                    png_idx = data.find(b"\x89PNG\r\n\x1a\n")
+                    if png_idx >= 0:
+                        with Image.open(BytesIO(data[png_idx:])) as img:
+                            img.load()
+                            return img.convert("RGBA")
+                    bmp_idx = data.find(b"BM")
+                    if bmp_idx >= 0:
+                        with Image.open(BytesIO(data[bmp_idx:])) as img:
+                            img.load()
+                            return img.convert("RGBA")
+            if ole.exists("\x05SummaryInformation"):
+                stream = ole.openstream("\x05SummaryInformation").read()
+                png_idx = stream.find(b"\x89PNG\r\n\x1a\n")
+                if png_idx >= 0:
+                    with Image.open(BytesIO(stream[png_idx:])) as img:
+                        img.load()
+                        return img.convert("RGBA")
+                bmp_idx = stream.find(b"BM")
+                if bmp_idx >= 0:
+                    with Image.open(BytesIO(stream[bmp_idx:])) as img:
+                        img.load()
+                        return img.convert("RGBA")
+        return None
+    except Exception:
+        return None
+
+
+def _load_max(source_path: Path) -> Image.Image:
+    thumb = extract_max_thumbnail(source_path)
+    if thumb is not None:
+        return thumb
+    raise RuntimeError(
+        "This 3ds Max file has no embedded viewport thumbnail. "
+        "In 3ds Max, enable 'Save Preview' in File Preferences, or export to .obj / .glb."
+    )
+
+
+def extract_f3d_thumbnail(path: Path) -> Image.Image | None:
+    """Extract pre-rendered high-res PNG thumbnail from Autodesk Fusion 360 (.f3d) archives."""
+    import zipfile
+    try:
+        with zipfile.ZipFile(str(path), "r") as zf:
+            for name in zf.namelist():
+                if "thumbnail" in name.lower() and name.lower().endswith((".png", ".jpg", ".jpeg")):
+                    data = zf.read(name)
+                    with Image.open(BytesIO(data)) as img:
+                        img.load()
+                        return img.convert("RGBA")
+        return None
+    except Exception:
+        return None
+
+
+def _load_f3d(source_path: Path) -> Image.Image:
+    thumb = extract_f3d_thumbnail(source_path)
+    if thumb is not None:
+        return thumb
+    raise RuntimeError("Could not find embedded preview thumbnail in this Fusion 360 (.f3d) file.")
+
+
+def extract_maya_thumbnail(path: Path) -> Image.Image | None:
+    """Extract embedded swatch/thumbnail from Autodesk Maya (.mb, .ma) files."""
+    try:
+        ext = path.suffix.lower()
+        if ext == ".ma":
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                for _ in range(500):
+                    line = f.readline()
+                    if not line:
+                        break
+                    if "thumbnail" in line.lower():
+                        import base64
+                        import re
+                        m = re.search(r'["\']([A-Za-z0-9+/=]{100,})["\']', line)
+                        if m:
+                            try:
+                                 raw = base64.b64decode(m.group(1))
+                                 with Image.open(BytesIO(raw)) as img:
+                                     img.load()
+                                     return img.convert("RGBA")
+                            except Exception:
+                                pass
+        elif ext == ".mb":
+            with open(path, "rb") as f:
+                header_data = f.read(512 * 1024)
+                png_idx = header_data.find(b"\x89PNG\r\n\x1a\n")
+                if png_idx >= 0:
+                    with Image.open(BytesIO(header_data[png_idx:])) as img:
+                        img.load()
+                        return img.convert("RGBA")
+                jpg_idx = header_data.find(b"\xff\xd8\xff")
+                if jpg_idx >= 0:
+                    with Image.open(BytesIO(header_data[jpg_idx:])) as img:
+                        img.load()
+                        return img.convert("RGBA")
+        return None
+    except Exception:
+        return None
+
+
+def _load_maya(source_path: Path) -> Image.Image:
+    thumb = extract_maya_thumbnail(source_path)
+    if thumb is not None:
+        return thumb
+    raise RuntimeError(
+        "This Maya file has no embedded swatch thumbnail. "
+        "In Maya, enable 'Save Thumbnail' in Scene Save Preferences, or export to .obj / .glb."
+    )
+
+
+def _load_cad_solid(source_path: Path, config: PreviewConfig) -> Image.Image:
+    """Convert universal CAD solids (.step, .stp, .iges, .igs) into 3D meshes for 360° orbit preview."""
+    try:
+        import cascadio
+        glb_bytes = cascadio.to_glb_bytes(str(source_path))
+        import trimesh
+        mesh = trimesh.load(BytesIO(glb_bytes), file_type="glb")
+        if isinstance(mesh, trimesh.Scene):
+            try:
+                mesh = mesh.to_geometry()
+            except Exception:
+                mesh = trimesh.util.concatenate(mesh.dump())
+        return render_3d_mesh(
+            mesh=mesh,
+            yaw_deg=config.yaw,
+            pitch_deg=config.pitch,
+            model_color=config.model_color,
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Could not convert CAD solid to 3D mesh: {exc}")
+
 
 def load_source_image(source_path: Path, config: PreviewConfig | None = None) -> Image.Image:
-    """Load an input file (.png, .webp, .tiff, .svg, .psd, 3D meshes) into a verified RGBA PIL Image."""
+    """Load an input file (2D images, PSD, 3D meshes, CAD files) into a verified RGBA PIL Image."""
+    source_path = Path(source_path)
     ext = source_path.suffix.lower()
 
     if ext in (".svg", ".svgz"):
@@ -373,6 +655,24 @@ def load_source_image(source_path: Path, config: PreviewConfig | None = None) ->
 
     if ext == ".psd":
         return _load_psd(source_path)
+
+    if ext == ".dxf":
+        return _load_dxf(source_path)
+
+    if ext == ".dwg":
+        return _load_dwg(source_path)
+
+    if ext == ".max":
+        return _load_max(source_path)
+
+    if ext == ".f3d":
+        return _load_f3d(source_path)
+
+    if ext in (".mb", ".ma"):
+        return _load_maya(source_path)
+
+    if ext in (".step", ".stp", ".iges", ".igs"):
+        return _load_cad_solid(source_path, config or PreviewConfig())
 
     if ext in SUPPORTED_3D_EXTENSIONS:
         return _load_3d(source_path, config or PreviewConfig())
@@ -385,7 +685,6 @@ def load_source_image(source_path: Path, config: PreviewConfig | None = None) ->
         if img.mode in ("CMYK", "YCbCr"):
             img = img.convert("RGB")
         return img.convert("RGBA")
-
 
 def render_3d_mesh(
     mesh,
@@ -564,16 +863,12 @@ def _load_3d(source_path: Path, config: PreviewConfig) -> Image.Image:
 
         blender_bin = shutil.which("blender")
         if not blender_bin and sys.platform == "win32":
-            for p in (
-                "C:/Program Files/Blender Foundation/Blender 4.3/blender.exe",
-                "C:/Program Files/Blender Foundation/Blender 4.2/blender.exe",
-                "C:/Program Files/Blender Foundation/Blender 4.1/blender.exe",
-                "C:/Program Files/Blender Foundation/Blender 4.0/blender.exe",
-                "C:/Program Files/Blender Foundation/Blender 3.6/blender.exe",
-            ):
-                if Path(p).exists():
-                    blender_bin = p
-                    break
+            prog_files = Path(os.environ.get("ProgramFiles", "C:/Program Files"))
+            foundation = prog_files / "Blender Foundation"
+            if foundation.is_dir():
+                matches = sorted(foundation.glob("Blender */blender.exe"))
+                if matches:
+                    blender_bin = str(matches[-1])
         elif not blender_bin and sys.platform == "darwin":
             mac_b = Path("/Applications/Blender.app/Contents/MacOS/blender")
             if mac_b.exists():
@@ -646,20 +941,28 @@ def generate_file(
 
 
 def preview_jpeg_bytes(
-    source_path: Path,
+    source_path: Path | str,
     config: PreviewConfig | None = None,
     text: str | None = None,
+    max_dimension: int = 850,
 ) -> bytes:
+    source_path = Path(source_path)
     if config is None:
         config = PreviewConfig(text=text if text is not None else DEFAULT_TEXT)
 
     source = load_source_image(source_path, config)
+    w, h = source.size
+    if max(w, h) > max_dimension:
+        ratio = max_dimension / max(w, h)
+        tw = max(100, round(w * ratio))
+        th = max(100, round(h * ratio))
+        source = source.resize((tw, th), Image.Resampling.BILINEAR)
+
     preview = compose_preview(source, config)
 
     buffer = BytesIO()
-    preview.save(buffer, format="JPEG", quality=90, subsampling=0)
+    preview.save(buffer, format="JPEG", quality=85, subsampling=0)
     return buffer.getvalue()
-
 
 def process_folder(
     input_folder: Path,

@@ -25,12 +25,14 @@ echo Creating Desktop shortcut...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$wsh = New-Object -ComObject WScript.Shell; " ^
     "$desktop = [Environment]::GetFolderPath('Desktop'); " ^
-    "$s = $wsh.CreateShortcut(\"$desktop\PreviewGen.lnk\"); " ^
-    "$s.TargetPath = '%TARGET_EXE%'; " ^
-    "$s.WorkingDirectory = '%~dp0dist\PreviewGen'; " ^
-    "$s.IconLocation = '%APP_ICO%,0'; " ^
-    "$s.Description = 'PreviewGen - Transparent PNG to JPG Preview Generator'; " ^
-    "$s.Save()"
+    "if (Test-Path $desktop) { " ^
+    "  $s = $wsh.CreateShortcut(\"$desktop\PreviewGen.lnk\"); " ^
+    "  $s.TargetPath = '%TARGET_EXE%'; " ^
+    "  $s.WorkingDirectory = '%~dp0dist\PreviewGen'; " ^
+    "  $s.IconLocation = '%APP_ICO%,0'; " ^
+    "  $s.Description = 'PreviewGen - Transparent PNG to JPG Preview Generator'; " ^
+    "  $s.Save(); " ^
+    "}"
 
 echo Creating Start Menu shortcut...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^

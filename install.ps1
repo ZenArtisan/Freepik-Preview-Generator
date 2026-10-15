@@ -86,17 +86,18 @@ $IconPath = "$InstallDir\app.ico"
 if (-not (Test-Path $IconPath)) {
     $IconPath = $ExePath
 }
-
 $WshShell = New-Object -ComObject WScript.Shell
+$Desktop = [Environment]::GetFolderPath('Desktop')
 
-# Desktop shortcut
-$DesktopShortcut = $WshShell.CreateShortcut("$Desktop\$AppName.lnk")
-$DesktopShortcut.TargetPath = $ExePath
-$DesktopShortcut.WorkingDirectory = (Split-Path $ExePath)
-$DesktopShortcut.IconLocation = "$IconPath,0"
-$DesktopShortcut.Description = "PreviewGen - Transparent PNG to JPG Preview Generator"
-$DesktopShortcut.Save()
-
+if (Test-Path $Desktop) {
+    $DesktopShortcut = $WshShell.CreateShortcut("$Desktop\$AppName.lnk")
+    $DesktopShortcut.TargetPath = $ExePath
+    $DesktopShortcut.WorkingDirectory = (Split-Path $ExePath)
+    $DesktopShortcut.IconLocation = "$IconPath,0"
+    $DesktopShortcut.Description = "PreviewGen - Transparent PNG to JPG Preview Generator"
+    $DesktopShortcut.Save()
+    Write-Host "      Desktop shortcut created: $Desktop\$AppName.lnk" -ForegroundColor Green
+}
 # Start Menu shortcut
 if (-not (Test-Path $StartMenu)) {
     New-Item -ItemType Directory -Path $StartMenu -Force | Out-Null

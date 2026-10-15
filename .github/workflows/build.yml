@@ -51,12 +51,19 @@ jobs:
             libdbus-1-3 libxcb-randr0 libxcb-render-util0 \
             fuse libfuse2
 
+      # ── Build React Frontend ──
+      - name: Build React frontend
+        run: |
+          cd frontend
+          npm install
+          npm run build
+          cd ..
+
       # ── Build with PyInstaller ──
       - name: Build executable
         run: |
-          pyinstaller --noconsole --name PreviewGen --add-data "app.ico${{ runner.os == 'Windows' && ';' || ':' }}." --collect-all psd_tools --collect-all trimesh --hidden-import PySide6.QtSvg main.py --clean -y
-
-      # ── Windows: zip the dist folder with shortcut installer ──
+          pyinstaller --noconsole --name PreviewGen --add-data "app.ico${{ runner.os == 'Windows' && ';' || ':' }}." --add-data "frontend/dist${{ runner.os == 'Windows' && ';' || ':' }}frontend/dist" --collect-all psd_tools --collect-all trimesh --collect-all webview --collect-all ezdxf --collect-all olefile --collect-all cascadio --hidden-import PySide6.QtSvg app.py --clean -y
+      # ── Windows: build Inno Setup wizard and zip portable dist ──
       - name: Package Windows build
         if: runner.os == 'Windows'
         shell: pwsh
@@ -64,6 +71,9 @@ jobs:
           Copy-Item install_desktop_icon.bat dist\PreviewGen\Install-Desktop-Icon.bat
           Copy-Item app.ico dist\PreviewGen\app.ico
           Compress-Archive -Path dist\PreviewGen\* -DestinationPath PreviewGen-Windows.zip -Force
+          # Compile Inno Setup installer wizard (PreviewGen-Setup.exe)
+          & "C:\Program Files (x86)\Inno Setup 6\iscc.exe" installer.iss
+          Move-Item dist\PreviewGen-Setup.exe .
       # ── macOS: create .dmg ──
       - name: Package macOS build
         if: runner.os == 'macOS'
@@ -120,6 +130,7 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: |
+            PreviewGen-Setup.exe
             PreviewGen-Windows.zip
             PreviewGen-macOS.dmg
             PreviewGen-Linux.AppImage
@@ -139,6 +150,7 @@ jobs:
         with:
           generate_release_notes: true
           files: |
+            PreviewGen-Setup.exe
             PreviewGen-Windows.zip
             PreviewGen-macOS.dmg
             PreviewGen-Linux.AppImage

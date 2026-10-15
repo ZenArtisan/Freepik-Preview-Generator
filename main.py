@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from processor import (
     DEFAULT_TEXT, PreviewConfig, preview_jpeg_bytes, process_folder,
-    SUPPORTED_EXTENSIONS, SUPPORTED_3D_EXTENSIONS
+    SUPPORTED_EXTENSIONS, SUPPORTED_3D_EXTENSIONS, SUPPORTED_CAD_EXTENSIONS
 )
 
 
@@ -32,84 +32,84 @@ DARK = "dark"
 
 THEME = {
     LIGHT: {
-        "bg":           "#F7FBFD",
-        "card_bg":      "#FFFFFF",
-        "card_border":  "#D6E6EF",
-        "text":         "#182C38",
-        "text_sec":     "#4D6775",
-        "text_muted":   "#7FA6B8",
-        "field_bg":     "#FFFFFF",
-        "field_border": "#D6E6EF",
+        "bg":           "#D6E6EF",
+        "card_bg":      "#EBF3F8",
+        "card_border":  "#BACED9",
+        "text":         "#1C2E38",
+        "text_sec":     "#46606F",
+        "text_muted":   "#6A8594",
+        "field_bg":     "#EBF3F8",
+        "field_border": "#BACED9",
         "field_focus":  "#7FA6B8",
         "accent":       "#7FA6B8",
-        "accent_hover": "#6C94A6",
-        "accent_press": "#5A8294",
+        "accent_hover": "#6A93A6",
+        "accent_press": "#558094",
         "danger":       "#E05252",
         "danger_hover": "rgba(224, 82, 82, 0.10)",
         "chip_bg":      "#D6E6EF",
-        "chip_border":  "#D6E6EF",
-        "chip_hover":   "#C2D7E3",
-        "scroll_bg":    "#F7FBFD",
-        "scroll_handle":"#C4D8E3",
+        "chip_border":  "#BACED9",
+        "chip_hover":   "#C6DAE5",
+        "scroll_bg":    "#D6E6EF",
+        "scroll_handle":"#BACED9",
         "scroll_hover": "#7FA6B8",
-        "slider_track": "#D6E6EF",
+        "slider_track": "#BACED9",
         "slider_fill":  "#7FA6B8",
-        "slider_knob":  "#FFFFFF",
-        "check_border": "#AEC8D6",
+        "slider_knob":  "#EBF3F8",
+        "check_border": "#A0BAC8",
         "check_active": "#7FA6B8",
-        "preview_bg":   "#FFFFFF",
-        "preview_bdr":  "#D6E6EF",
-        "success_bg":   "#E6F7F0",
-        "success_fg":   "#0D7A53",
-        "fail_bg":      "#FDECEE",
-        "fail_fg":      "#A32231",
+        "preview_bg":   "#EBF3F8",
+        "preview_bdr":  "#BACED9",
+        "success_bg":   "#D1FAE5",
+        "success_fg":   "#065F46",
+        "fail_bg":      "#FEE2E2",
+        "fail_fg":      "#991B1B",
         "info_bg":      "#D6E6EF",
         "info_fg":      "#1E4E63",
-        "disabled_fg":  "#9CB7C4",
-        "disabled_bg":  "#F0F6FA",
-        "dropdown_arr": "#4D6775",
-        "toggle_bg":    "#D6E6EF",
-        "toggle_bdr":   "#C4D8E3",
+        "disabled_fg":  "#8FA7B5",
+        "disabled_bg":  "#D6E6EF",
+        "dropdown_arr": "#46606F",
+        "toggle_bg":    "#BACED9",
+        "toggle_bdr":   "#A0BAC8",
     },
     DARK: {
-        "bg":           "#0E171E",
-        "card_bg":      "#15222B",
-        "card_border":  "#223542",
-        "text":         "#F7FBFD",
-        "text_sec":     "#D6E6EF",
-        "text_muted":   "#8AA7B7",
-        "field_bg":     "#1C2C37",
-        "field_border": "#2D4454",
-        "field_focus":  "#93BDD0",
+        "bg":           "#121212",
+        "card_bg":      "#1E1E1E",
+        "card_border":  "#2D2D2D",
+        "text":         "#F0F0F0",
+        "text_sec":     "#9E9E9E",
+        "text_muted":   "#707070",
+        "field_bg":     "#262626",
+        "field_border": "#383838",
+        "field_focus":  "#7FA6B8",
         "accent":       "#7FA6B8",
-        "accent_hover": "#93BDD0",
-        "accent_press": "#6B93A5",
+        "accent_hover": "#92B7C8",
+        "accent_press": "#6A93A6",
         "danger":       "#F87171",
         "danger_hover": "rgba(248, 113, 113, 0.14)",
-        "chip_bg":      "#1C2C37",
-        "chip_border":  "#2D4454",
-        "chip_hover":   "#263B4A",
-        "scroll_bg":    "#0E171E",
-        "scroll_handle":"#263B4A",
-        "scroll_hover": "#3A566A",
-        "slider_track": "#223542",
+        "chip_bg":      "#282828",
+        "chip_border":  "#383838",
+        "chip_hover":   "#333333",
+        "scroll_bg":    "#121212",
+        "scroll_handle":"#2D2D2D",
+        "scroll_hover": "#444444",
+        "slider_track": "#303030",
         "slider_fill":  "#7FA6B8",
-        "slider_knob":  "#F7FBFD",
-        "check_border": "#3A566A",
+        "slider_knob":  "#E0E0E0",
+        "check_border": "#383838",
         "check_active": "#7FA6B8",
-        "preview_bg":   "#0A1117",
-        "preview_bdr":  "#223542",
-        "success_bg":   "#0D3325",
-        "success_fg":   "#5EEAD4",
-        "fail_bg":      "#45141A",
-        "fail_fg":      "#FDA4AF",
-        "info_bg":      "#1A3342",
-        "info_fg":      "#BAE6FD",
-        "disabled_fg":  "#486374",
-        "disabled_bg":  "#121C24",
-        "dropdown_arr": "#D6E6EF",
-        "toggle_bg":    "#1C2C37",
-        "toggle_bdr":   "#2D4454",
+        "preview_bg":   "#0E0E0E",
+        "preview_bdr":  "#2D2D2D",
+        "success_bg":   "#064E3B",
+        "success_fg":   "#6EE7B7",
+        "fail_bg":      "#7F1D1D",
+        "fail_fg":      "#FCA5A5",
+        "info_bg":      "#262626",
+        "info_fg":      "#7FA6B8",
+        "disabled_fg":  "#555555",
+        "disabled_bg":  "#1A1A1A",
+        "dropdown_arr": "#9E9E9E",
+        "toggle_bg":    "#282828",
+        "toggle_bdr":   "#383838",
     },
 }
 
@@ -461,13 +461,46 @@ class InteractivePreviewLabel(QLabel):
         super().mouseReleaseEvent(event)
 
 # ──────────────────────────────────────────────────────────────────────
-# Background Worker
+# Async Preview Worker (Single-Flight Non-Blocking Background Engine)
+# ──────────────────────────────────────────────────────────────────────
+class PreviewTaskSignals(QObject):
+    ready = Signal(int, QPixmap, str, int, int)
+    error = Signal(int, str)
+
+
+class AsyncPreviewWorker(QRunnable):
+    def __init__(self, task_id: int, source_path: Path, config: PreviewConfig):
+        super().__init__()
+        self.task_id = task_id
+        self.source_path = source_path
+        self.config = config
+        self.signals = PreviewTaskSignals()
+
+    def run(self):
+        try:
+            jpeg_bytes = preview_jpeg_bytes(self.source_path, self.config, max_dimension=850)
+            pix = QPixmap()
+            if pix.loadFromData(jpeg_bytes, "JPG"):
+                self.signals.ready.emit(
+                    self.task_id,
+                    pix,
+                    self.source_path.name,
+                    pix.width(),
+                    pix.height(),
+                )
+            else:
+                self.signals.error.emit(self.task_id, "Could not decode preview image")
+        except Exception as exc:
+            self.signals.error.emit(self.task_id, str(exc))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Background Batch Worker
 # ──────────────────────────────────────────────────────────────────────
 class WorkerSignals(QObject):
     progress = Signal(int, int, str)
     finished = Signal(int, int, list, bool)
     failed = Signal(str)
-
 
 class BatchWorker(QRunnable):
     def __init__(self, input_folder: Path, output_folder: Path, config: PreviewConfig) -> None:
@@ -522,15 +555,20 @@ class MainWindow(QMainWindow):
         self._raw_pixmap: QPixmap | None = None
         self._fit_to_view = True
         self._current_theme = LIGHT
-        # Debounce timer
+        self.preview_thread_pool = QThreadPool()
+        self.preview_thread_pool.setMaxThreadCount(1)
+        self._current_preview_task_id = 0
+
+        # Responsive debounce timer (40ms for instantaneous 60fps interaction)
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)
-        self._preview_timer.setInterval(120)
+        self._preview_timer.setInterval(40)
         self._preview_timer.timeout.connect(self._do_refresh_preview)
 
         self._build_ui()
         self._load_app_icon()
         self._setup_system_tray()
+        self._ensure_desktop_shortcut()
         self._load_saved_settings()
     # ──────────────────────────────────────────────────────────────────
     # UI Construction
@@ -1137,6 +1175,9 @@ class MainWindow(QMainWindow):
         self._apply_theme(self._current_theme)
         self._save_settings()
 
+    def toggle_theme(self) -> None:
+        is_dark = (self._current_theme == LIGHT)
+        self._on_theme_toggled(is_dark)
     # ──────────────────────────────────────────────────────────────────
     # Settings & State Persistence
     # ──────────────────────────────────────────────────────────────────
@@ -1625,7 +1666,7 @@ class MainWindow(QMainWindow):
         self.prev_btn.setEnabled(self.current_file_idx > 0)
         self.next_btn.setEnabled(self.current_file_idx < total - 1)
 
-        is_3d = self.preview_source.suffix.lower() in SUPPORTED_3D_EXTENSIONS
+        is_3d = self.preview_source.suffix.lower() in SUPPORTED_3D_EXTENSIONS or self.preview_source.suffix.lower() in (".step", ".stp", ".iges", ".igs")
         self.panel_3d.setVisible(is_3d)
         self.preview_label.set_3d_mode(is_3d)
 
@@ -1662,22 +1703,73 @@ class MainWindow(QMainWindow):
     def _do_refresh_preview(self) -> None:
         if not self.preview_source or not self.preview_source.is_file():
             return
+
+        self._current_preview_task_id += 1
+        task_id = self._current_preview_task_id
+        config = self.get_current_config()
+
+        worker = AsyncPreviewWorker(task_id, self.preview_source, config)
+        worker.signals.ready.connect(self._on_preview_ready)
+        worker.signals.error.connect(self._on_preview_error)
+        self.preview_thread_pool.start(worker)
+
+    def _on_preview_ready(self, task_id: int, pixmap: QPixmap, name: str, w: int, h: int) -> None:
+        if task_id != self._current_preview_task_id:
+            return
+
+        self._raw_pixmap = pixmap
+        ext_badge = self.preview_source.suffix.upper().lstrip(".") if self.preview_source else ""
+        self.file_info_lbl.setText(f"Preview: {name}  [{ext_badge}]")
+        self.res_info_lbl.setText(f"{w} × {h} px")
+        self._update_preview_display()
+
+    def _on_preview_error(self, task_id: int, err: str) -> None:
+        if task_id != self._current_preview_task_id:
+            return
+        self.preview_label.setText(f"Preview error:\n{err}")
+        self.file_info_lbl.setText("Error loading preview")
+
+    def _ensure_desktop_shortcut(self) -> None:
+        """Ensure an official desktop shortcut exists across Windows, macOS, and Linux."""
         try:
-            config = self.get_current_config()
-            jpeg_bytes = preview_jpeg_bytes(self.preview_source, config)
-            pixmap = QPixmap()
-            if not pixmap.loadFromData(jpeg_bytes, "JPG"):
-                raise ValueError("Could not decode preview image")
-
-            self._raw_pixmap = pixmap
-            ext_badge = self.preview_source.suffix.upper().lstrip(".")
-            self.file_info_lbl.setText(f"Preview: {self.preview_source.name}  [{ext_badge}]")
-            self.res_info_lbl.setText(f"{pixmap.width()} × {pixmap.height()} px")
-            self._update_preview_display()
-        except Exception as exc:
-            self.preview_label.setText(f"Preview error:\n{exc}")
-            self.file_info_lbl.setText("Error loading preview")
-
+            if sys.platform == "win32":
+                import subprocess
+                exe = sys.executable if getattr(sys, "frozen", False) else str(Path(__file__).resolve().parent / "dist" / "PreviewGen" / "PreviewGen.exe")
+                if not Path(exe).is_file():
+                    return
+                ico = str(Path(exe).parent / "app.ico")
+                if not Path(ico).is_file():
+                    ico = str(Path(__file__).resolve().parent / "app.ico")
+                ps_script = f"""
+$wsh = New-Object -ComObject WScript.Shell
+$desktop = [Environment]::GetFolderPath('Desktop')
+if ($desktop -and (Test-Path $desktop)) {{
+    $lnk = Join-Path $desktop "PreviewGen.lnk"
+    if (-not (Test-Path $lnk)) {{
+        $s = $wsh.CreateShortcut($lnk)
+        $s.TargetPath = '{exe}'
+        $s.WorkingDirectory = '{Path(exe).parent}'
+        if (Test-Path '{ico}') {{ $s.IconLocation = '{ico},0' }}
+        $s.Description = 'PreviewGen - Transparent PNG to JPG Preview Generator'
+        $s.Save()
+    }}
+}}
+"""
+                subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_script], creationflags=0x08000000)
+            elif sys.platform == "darwin":
+                desktop = Path.home() / "Desktop" / "PreviewGen"
+                app_path = Path("/Applications/PreviewGen.app")
+                if desktop.parent.exists() and not desktop.exists() and app_path.exists():
+                    desktop.symlink_to(app_path)
+            elif sys.platform.startswith("linux"):
+                desktop = Path.home() / "Desktop" / "PreviewGen.desktop"
+                app_entry = Path.home() / ".local/share/applications/previewgen.desktop"
+                if desktop.parent.exists() and not desktop.exists() and app_entry.exists():
+                    import shutil
+                    shutil.copyfile(app_entry, desktop)
+                    desktop.chmod(0o755)
+        except Exception:
+            pass
     def _update_preview_display(self) -> None:
         if not self._raw_pixmap or self._raw_pixmap.isNull():
             return

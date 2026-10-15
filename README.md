@@ -1,7 +1,7 @@
 # PreviewGen
 
 **The Automated Batch Preview Studio for Marketplace Contributors & Digital Artists.**  
-Transform folders of transparent **2D assets (PNG, WebP, SVG, TIFF, PSD)** and **3D models (GLB, GLTF, OBJ, STL, PLY, BLEND)** into marketplace-compliant, split-diagonal JPG previews in seconds.
+Transform folders of transparent **2D assets (PNG, WebP, SVG, TIFF, PSD)**, **3D models (GLB, GLTF, OBJ, STL, PLY, BLEND)**, and **CAD drawings/solids (DXF, DWG, MAX, F3D, MB, STEP, IGES)** into marketplace-compliant, split-diagonal JPG previews in seconds.
 
 ---
 
@@ -9,17 +9,18 @@ Transform folders of transparent **2D assets (PNG, WebP, SVG, TIFF, PSD)** and *
 
 Selling digital assets on top marketplaces like **Freepik, Adobe Stock, Shutterstock, Creative Market, Envato, and Etsy** is a high-volume business. However, digital asset platforms have a strict requirement:
 
-> **Every transparent asset (PNG or PSD) must be accompanied by a high-resolution JPG preview that clearly proves transparency to potential buyers before they purchase.**
+> **Every transparent asset (PNG, PSD, 3D model, or CAD drawing) must be accompanied by a high-resolution JPG preview that clearly proves transparency to potential buyers before they purchase.**
 
 ### The Pain Points We Solve
 
 | The Pain Point | How Designers Handled It Before | How PreviewGen Solves It |
 |---|---|---|
-| ⏳ **Extreme Time Waste** | Manually opening Photoshop, drawing diagonal masks, generating checkerboards, pasting text badges, and saving one file at a time. | **1-Click Batch Processing**: Process 500+ images in under 60 seconds completely hands-free. |
+| ⏳ **Extreme Time Waste** | Manually opening Photoshop, drawing diagonal masks, generating checkerboards, pasting text badges, and saving one file at a time. | **1-Click Batch Processing**: Process 500+ files in under 60 seconds completely hands-free. |
 | ❌ **Marketplace Rejections** | Rejections from reviewers because the preview didn't clearly communicate transparency or lacked a standard split. | **Strict Marketplace Compliance**: Standard diagonal split (checkerboard transparency vs. solid background) approved by reviewers. |
 | 🔒 **Privacy & Cloud Leaks** | Uploading unreleased, proprietary art to sketchy "free online converter" websites that steal or scrape artwork. | **100% Local & Offline**: Your files never leave your computer. Complete privacy and zero data leakage. |
-| 🔍 **Distortion & Cropping** | Batch scripts that accidentally stretch, crop, trim padding, or resize transparent canvases. | **Zero Distortion Guarantee**: Original alpha channel and dimensions are preserved with pixel-perfect composite. |
-| 🎨 **Ugly / Generic Watermarks** | Bland or unreadable watermarks that obscure artwork or blend into transparent areas. | **Full Customization Studio**: Configurable text, fill colors, outer outline/stroke, opacity, scale, and 5 anchor positions. |
+| 🔍 **Distortion & Cropping** | Batch scripts that accidentally stretch, crop, trim padding, or decimate complex 3D meshes (like vehicle wheels). | **Zero Distortion Guarantee**: Original alpha channel, dimensions, and pristine 3D vertices/normals are preserved with zero decimation. |
+| 🎨 **Ugly / Generic Watermarks** | Bland or unreadable watermarks locked to rigid corners that obscure critical artwork details. | **Full Customization Studio**: Custom brand logo upload, custom font file upload (`.ttf`, `.otf`), outline strokes, and continuous freeform X/Y position sliders. |
+| 🛠️ **Missing 3D & CAD Software** | Unable to preview `.blend`, `.dwg`, `.max`, or `.f3d` files on computers without Blender, AutoCAD, or 3ds Max installed. | **Zero-Dependency Native Extraction**: Extracts embedded scene renders and converts CAD solids directly in pure Python without needing host software. |
 
 ---
 
@@ -29,6 +30,7 @@ Selling digital assets on top marketplaces like **Freepik, Adobe Stock, Shutters
 - **Freelance Illustrators & Vector Artists** preparing asset packs for commercial clients
 - **Icon & UI/UX Designers** exporting hundreds of transparent components for showcase
 - **3D Artists & Game Asset Creators** packaging transparent character renders, props, and textures
+- **CAD Engineers & Industrial Designers** generating previews for AutoCAD drawings, SolidWorks parts, and 3D prints
 - **Creative Studios & Agencies** looking to automate repetitive post-production export workflows
 
 ---
@@ -38,7 +40,7 @@ Selling digital assets on top marketplaces like **Freepik, Adobe Stock, Shutters
 1. **Reclaim Hours of Your Week**: Stop doing repetitive monkey-work in Photoshop. Load your folder, click one button, and let the background worker handle thousands of assets while you focus on creating art.
 2. **Increase Submission Approval Rates**: Reviewers on platforms like Freepik accept submissions faster when previews follow the industry-standard diagonal split convention.
 3. **Studio-Grade Control**: Whether your brand uses pure white, off-white, light gray, or dark solid backgrounds, customize colors with the interactive palette and instant live preview.
-4. **Native Desktop Speed**: Powered by Python, PySide6, and Pillow with multithreaded background workers—no lag, no memory leaks, and no browser slowdowns.
+4. **Native Desktop Speed & 60 FPS Fluidity**: Powered by an asynchronous background rendering worker and native OS webview—zero UI freezing, zero lag, and instant responsiveness.
 
 ---
 
@@ -92,7 +94,8 @@ curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Preview-Generat
 Prefer downloading manually?
 1. Visit the [**Latest Releases**](https://github.com/Mustaqeem66/Freepik-Preview-Generator/releases/latest).
 2. Download your platform package:
-   - **Windows**: `PreviewGen-Windows.zip` — Extract and double-click `Install-Desktop-Icon.bat`.
+   - **Windows (Installer Wizard)**: `PreviewGen-Setup.exe` — Complete setup wizard with License Agreement, custom directory picker, and Desktop icon checkbox.
+   - **Windows (Portable)**: `PreviewGen-Windows.zip` — Extract and double-click `Install-Desktop-Icon.bat`.
    - **macOS**: `PreviewGen-macOS.dmg` — Open DMG, drag to Applications, run `xattr -cr /Applications/PreviewGen.app` if prompted.
    - **Linux**: `PreviewGen-Linux.AppImage` — Run `chmod +x PreviewGen-Linux.AppImage` and double-click.
 
@@ -109,14 +112,15 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
 
 1. **Select Input Folder (or ZIP Archive)**:
    - Click **Browse…** in panel `1 · Folders` and pick a folder containing your transparent assets.
-   - You can drop folders with **PNG, WebP, SVG, TIFF, PSD, 3D models (GLB, OBJ, STL, BLEND)**, or even **`.zip` files**!
+   - You can drop folders with **2D images, 3D models, CAD drawings, or nested `.zip` archives**!
 2. **Flip Through Files with Live Viewport Navigation**:
    - Use the **`◀ Prev`** and **`Next ▶`** buttons in the toolbar (or press **Left/Right Arrow keys** on your keyboard) to preview any asset in your folder instantly.
-3. **Rotate 3D Models in Full 360° (When viewing 3D files)**:
+3. **Rotate 3D Models & CAD Solids in Full 360°**:
    - Click and drag your mouse directly on the preview image to orbit the model in 360°.
    - Or click an angle preset like **Isometric (3/4)**, **Front**, **Side**, **Top**, or **Back**.
 4. **Add Brand Watermarks (Logo, Text, or Both)**:
    - Upload your logo image (`.png`, `.svg`, `.ico`) and adjust **Scale** and **Opacity**.
+   - Upload custom brand fonts (`.ttf`, `.otf`, `.woff`) for watermark text.
    - Use the **X** and **Y** position sliders to place your logo and watermark text at any exact percentage coordinate on the canvas.
 5. **Choose Split Direction & Background Color**:
    - Choose whether the solid color sits on the Left or Right half.
@@ -140,6 +144,7 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
   * **Verdict**: For standalone desktop software like PreviewGen, **GitHub Releases is the official and correct distribution hub**. You do not need to publish to GitHub Packages unless we split the rendering engine into an open-source library for other developers.
 
 ---
+
 ## 🚀 Key Features
 
 ### 1. Multi-Format 2D Ingestion (PNG, WebP, SVG, TIFF, PSD)
@@ -153,22 +158,27 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
 - **360° Interactive Orbit**: Click and drag your mouse directly on the preview image to rotate 3D models from any angle in real-time.
 - **Zero-Distortion Mesh Rendering**: Complex geometries (such as car models, thin vehicle panels, wheels, and interior parts) preserve their exact vertices, normals, and submesh transforms without destructive mesh decimation.
 - **Zero-Dependency .blend Previews**: Extracts embedded preview renders directly from `.blend` file headers in pure Python—no need to install Blender!
-- **Studio Angle Presets**: 1-click presets for **Isometric 3/4**, **Front**, **Side**, **Top**, and **Back** views.
+- **Studio Angle Presets**: 1-click presets for **Isometric 3/4**, **Front**, **Side**, **Top**, and **Back** views with sliding pill animations.
 - **Fine-Grained Controls**: Sliders for horizontal **Yaw (0°–360°)** and vertical **Pitch (-85° to +85°)** with two-sided directional lighting.
-### 3. File-by-File Viewport Navigation
-- **Previous & Next Buttons**: Easily cycle through any asset in your chosen folder using `◀ Prev` and `Next ▶` buttons.
-- **Live File Counter**: Visual badge showing current position (e.g. `File 3 / 24`).
-- **Keyboard Shortcuts**: Use **Left Arrow** (`◀`) and **Right Arrow** (`▶`) on your keyboard to flip through files effortlessly.
-- **Auto-Adapting Controls**: The 3D orbit panel automatically appears when browsing 3D models, and collapses when viewing 2D images.
+
+### 3. CAD & Engineering Formats (DXF, DWG, MAX, F3D, MB, STEP, IGES)
+- **AutoCAD DXF (`.dxf`)**: Vector path & geometry rasterization via `ezdxf` with automatic line drawing transparency conversion.
+- **AutoCAD DWG (`.dwg`)**: Pure Python binary header extraction of embedded BMP/PNG thumbnail sections without needing AutoCAD.
+- **Autodesk 3ds Max (`.max`)**: OLE Structured Storage thumbnail extraction via `olefile`—reads the embedded viewport render.
+- **Autodesk Fusion 360 (`.f3d`)**: Native archive decompression extracting pre-rendered high-res thumbnails.
+- **Autodesk Maya (`.mb`, `.ma`)**: Header IFF / base64 swatch parser extracting viewport preview chunks.
+- **Universal Solids (`.step`, `.stp`, `.iges`, `.igs`)**: Converts B-Rep engineering solids directly into 3D meshes for 360° interactive orbit!
+
 ### 4. Custom Brand Logo & Icon Overlay
 - **Upload Any Logo**: Upload brand watermarks (`.png`, `.webp`, `.svg`, `.ico`).
 - **Independent Sizing & Opacity**: Scale logos from 20% to 250% and adjust opacity from 10% to 100%.
 - **Freeform Position Sliders**: Position logos and text anywhere with continuous horizontal (X: 0–100%) and vertical (Y: 0–100%) offset sliders.
 - **Dual Branding**: Run logo only, text watermark only, or display both concurrently.
 
-### 5. Automated ZIP Archive Ingestion & Auto-Cleanup
-- **Drop ZIP Files Directly**: Points to folders containing `.zip` archives.
-- **Background Decompression**: Automatically extracts archives in memory/temp isolation, discovers all enclosed 2D and 3D assets, and renders previews.
+### 5. Automated Deep Recursive ZIP Extraction & Auto-Cleanup
+- **Nested Folder Traversal**: Recursively scans all subfolder levels inside `.zip` archives.
+- **Metadata Rejection**: Skips `__MACOSX`, `.DS_Store`, `._*` AppleDouble files, and `Thumbs.db`.
+- **Path-Collision Protection**: Automatically prefixes folder slugs (e.g. `archive_assets_vectors_icon.jpg`) if duplicate file names exist across different subfolders.
 - **Safe Auto-Cleanup**: Automatically deletes all temporary unzipped artifacts immediately upon completion across Windows, macOS, and Linux.
 
 ### 6. Diagonal Split Backgrounds
@@ -181,30 +191,32 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
 - **Customizable Label**: Defaults to `100% TRANSPARENT`, or enter your own custom text (or leave blank).
 - **Outer Outline / Stroke**: Toggleable stroke with custom color and thickness (Thin, Normal, Medium, Thick, Extra Bold) so text remains readable over any image.
 - **Live Sliders**: Real-time Font Scale (50% to 180%) and Text Opacity (10% to 100%).
-### 8. Premium Design System (Ice Blue & Slate Palette)
-- **Light Mode**: Crisp icy-white background (`#F7FBFD`), soft mist blue borders and chips (`#D6E6EF`), and slate steel blue accents (`#7FA6B8`).
-- **Dark Mode**: Deep nocturnal slate background (`#0E171E`), elevated dark surfaces (`#15222B`), luminous icy typography (`#F7FBFD`), and complementary slate blue highlights.
-- **Animated Sun/Moon Switch**: Smooth pill-style macOS theme toggle with session persistence.
 
-### 9. Live Debounced Viewport & Navigation
-- **Instant Feedback**: Any slider movement, color selection, or text edit reflects in the live preview within 120ms.
-- **View Modes**: Switch between responsive "Fit to View" and "Original 100%" pixel inspection.
-- **Image Metadata & Badge**: Displays active filename, format badge (e.g. `[GLB]`, `[PSD]`, `[SVG]`, `[WEBP]`), and resolution underneath the viewport.
+### 8. macOS Premium Design Craft (Ice Blue & Slate Palette)
+- **Top Specular Insets (The Apple Bevel)**: Milled glass appearance with subtle interior top-edge highlights catching directional light (`box-shadow: inset 0 1px 0 ...`).
+- **Damped Spring Physics**: Calibrated spring dynamics ($\text{stiffness: } 460, \text{damping: } 32, \text{mass: } 0.8$) powering sliders and toggles with zero robotic linear easing.
+- **Gliding Segmented Pills (`layoutId`)**: Active pills glide smoothly underneath preset options with zero flickering.
+- **Tabular Numerics (`tabular-nums`)**: Equal-width digits prevent horizontal layout jumping during live slider scrubbing.
+- **Frosted Glass Floating 3D HUD**: Floating translucent HUD pill with `backdrop-filter: blur(14px)`.
+- **Kinetic Cursor**: Shifts between `grab` and `grabbing` during 3D rotation.
+- **Light Mode Palette**: Airy mist-blue canvas (`#D6E6EF`), elevated mist cards (`#EBF3F8`), soft slate borders (`#BACED9`), and slate steel blue accents (`#7FA6B8`) with zero pure stark white.
+- **Dark Mode Palette**: Pure premium neutral dark grey (`#121212` canvas, `#1E1E1E` elevated cards, `#2D2D2D` subtle borders) with `#7FA6B8` accents and zero blue tint.
 
-### 10. High-Throughput Batch Engine
-- **Non-Blocking Multithreading**: Batch rendering runs in a separate thread pool so the user interface never freezes.
-- **Live Metrics**: Real-time progress bar, success counters, error counts, and pending image badges.
-- **Single-Click Cancel**: Abort long-running batches safely at any time.
+### 9. Asynchronous 60 FPS Performance Engine
+- **0ms UI Thread Latency**: Sliders, mouse dragging, and buttons run on the main UI loop with instant 60 FPS responsiveness.
+- **Background Rendering Pool**: Heavy 3D rendering and JPEG encoding run off-thread and stream previews asynchronously.
+- **Single-Flight Task Dropping**: Obsolete intermediate frames are automatically dropped during rapid slider movement so tasks never queue up.
+
 ---
 
 ## 📸 App Preview & Visual Showcase
 
-### Clean Light Mode
+### Clean Light Mode (`#D6E6EF` / `#7FA6B8` with `#EBF3F8` cards — No white)
 <p align="center">
   <img src="preview-light.png" alt="PreviewGen Light Mode Interface" width="850">
 </p>
 
-### Pure Dark Mode
+### Pure Dark Mode (True Premium Dark Grey `#121212` / `#1E1E1E` — No blue)
 <p align="center">
   <img src="preview-dark.png" alt="PreviewGen Dark Mode Interface" width="850">
 </p>
@@ -225,7 +237,10 @@ source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run PreviewGen
+# Run Desktop Studio (pywebview + React + Framer Motion)
+python app.py
+
+# Or run classic native Qt interface
 python main.py
 ```
 
