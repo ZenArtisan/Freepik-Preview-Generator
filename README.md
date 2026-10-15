@@ -1,7 +1,7 @@
 # PreviewGen
 
 **The Automated Batch Preview Studio for Marketplace Contributors & Digital Artists.**  
-Transform folders of transparent PNG assets into marketplace-compliant, split-diagonal JPG previews in seconds.
+Transform folders of transparent **PNG, WebP, SVG, TIFF, and Photoshop (PSD)** assets into marketplace-compliant, split-diagonal JPG previews in seconds.
 
 ---
 
@@ -100,32 +100,38 @@ Prefer downloading manually?
 
 ## 🚀 Key Features
 
-### 1. Diagonal Split Backgrounds
+### 1. Multi-Format 2D Ingestion (PNG, WebP, SVG, TIFF, PSD)
+- **PNG**: Pixel-perfect alpha compositing with zero canvas crop or distortion.
+- **WebP**: Full support for modern web & mobile transparent assets, with animated WebP keyframe fallback.
+- **SVG Vector**: Smooth vector rasterization at crisp high-res 4K target DPI using native QtSvg.
+- **TIFF / TIF**: High-bit depth print cutouts with automatic CMYK $\to$ sRGB color profile transform.
+- **PSD (Photoshop)**: Headless composite layer extraction directly from Photoshop binaries via `psd-tools` — no Adobe software required!
+
+### 2. Diagonal Split Backgrounds
 - **Two Equal-Area Triangles**: Cuts the canvas from corner to corner.
 - **Directional Flip**: Choose between *Left Solid / Right Transparent* or *Left Transparent / Right Solid*.
 - **Interactive Color Palette**: Pick any custom hex color or select from one-click presets (White, Off-White, Light Gray, Dark).
 
-### 2. Watermark & Typography Engine
+### 3. Watermark & Typography Engine
 - **Customizable Label**: Defaults to `100% TRANSPARENT`, or enter your own custom text (or leave blank).
 - **5 Anchor Positions**: Top-Left, Top-Right, Center, Bottom-Left, Bottom-Right.
 - **Outer Outline / Stroke**: Toggleable stroke with custom color and thickness (Thin, Normal, Medium, Thick, Extra Bold) so text remains readable over any image.
 - **Live Sliders**: Real-time Font Scale (50% to 180%) and Text Opacity (10% to 100%).
 
-### 3. Modern Dual-Theme Interface
+### 4. Modern Dual-Theme Interface
 - **Pure Dark Mode**: Designed for creative night owls — true dark grays, high-contrast inputs, zero harsh blue tints.
 - **Crisp Light Mode**: Clean, distraction-free modern aesthetic.
 - **Animated Toggle Switch**: One-click sun/moon switch in the header with session persistence.
 
-### 4. Live Debounced Viewport
+### 5. Live Debounced Viewport
 - **Instant Feedback**: Any slider movement, color selection, or text edit reflects in the live preview within 120ms.
 - **View Modes**: Switch between responsive "Fit to View" and "Original 100%" pixel inspection.
-- **Image Metadata**: Displays active filename and resolution underneath the viewport.
+- **Image Metadata & Badge**: Displays active filename, format badge (e.g. `[PSD]`, `[SVG]`, `[WEBP]`), and resolution underneath the viewport.
 
-### 5. High-Throughput Batch Engine
+### 6. High-Throughput Batch Engine
 - **Non-Blocking Multithreading**: Batch rendering runs in a separate thread pool so the user interface never freezes.
 - **Live Metrics**: Real-time progress bar, success counters, error counts, and pending image badges.
 - **Single-Click Cancel**: Abort long-running batches safely at any time.
-
 ---
 
 ## 📸 App Preview & Visual Showcase

@@ -19,7 +19,8 @@ from PySide6.QtWidgets import (
 )
 
 from processor import (
-    DEFAULT_TEXT, PreviewConfig, preview_jpeg_bytes, process_folder
+    DEFAULT_TEXT, PreviewConfig, preview_jpeg_bytes, process_folder,
+    SUPPORTED_EXTENSIONS
 )
 
 
@@ -577,11 +578,11 @@ class MainWindow(QMainWindow):
         card, lay = self._card()
         lay.addWidget(self._section_title("1 ·  Folders"))
 
-        lay.addWidget(self._field_label("Input PNG Folder"))
+        lay.addWidget(self._field_label("Input Folder (PNG, WebP, SVG, TIFF, PSD)"))
         in_row = QHBoxLayout()
         in_row.setSpacing(8)
         self.input_edit = QLineEdit()
-        self.input_edit.setPlaceholderText("Folder containing transparent PNGs")
+        self.input_edit.setPlaceholderText("Folder containing PNG, WebP, SVG, TIFF, or PSD files")
         self.input_browse_btn = QPushButton("Browse…")
         self.input_browse_btn.setProperty("class", "SecondaryButton")
         self.input_browse_btn.clicked.connect(self.choose_input)
@@ -589,7 +590,7 @@ class MainWindow(QMainWindow):
         in_row.addWidget(self.input_browse_btn)
         lay.addLayout(in_row)
 
-        self.same_folder_chk = QCheckBox("Save preview JPGs in the same folder as PNGs")
+        self.same_folder_chk = QCheckBox("Save preview JPGs in the same folder as input files")
         self.same_folder_chk.toggled.connect(self.on_same_folder_toggled)
         lay.addWidget(self.same_folder_chk)
 
@@ -1052,15 +1053,19 @@ class MainWindow(QMainWindow):
             self.res_info_lbl.setText("")
             return
 
-        pngs = sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".png")
-        if not pngs:
+        assets = sorted(
+            p for p in folder.iterdir()
+            if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+        )
+        if not assets:
             self.preview_source = None
-            self.preview_label.setText(f"No PNG files found in:\n{folder.name}")
-            self.file_info_lbl.setText("No PNGs found")
+            ext_str = ", ".join(ext.upper().lstrip(".") for ext in SUPPORTED_EXTENSIONS)
+            self.preview_label.setText(f"No supported images found in:\n{folder.name}\n\nSupported: {ext_str}")
+            self.file_info_lbl.setText("No supported images found")
             self.res_info_lbl.setText("")
             return
 
-        self.preview_source = pngs[0]
+        self.preview_source = assets[0]
         self._do_refresh_preview()
 
     def _do_refresh_preview(self) -> None:
@@ -1075,7 +1080,8 @@ class MainWindow(QMainWindow):
                 raise ValueError("Could not decode preview image")
 
             self._raw_pixmap = pixmap
-            self.file_info_lbl.setText(f"Preview: {self.preview_source.name}")
+            ext_badge = self.preview_source.suffix.upper().lstrip(".")
+            self.file_info_lbl.setText(f"Preview: {self.preview_source.name}  [{ext_badge}]")
             self.res_info_lbl.setText(f"{pixmap.width()} × {pixmap.height()} px")
             self._update_preview_display()
         except Exception as exc:
@@ -1129,12 +1135,20 @@ class MainWindow(QMainWindow):
         output_folder = Path(out_str)
         self._save_settings()
 
-        png_files = [p for p in input_folder.iterdir() if p.is_file() and p.suffix.lower() == ".png"]
-        if not png_files:
-            QMessageBox.warning(self, "No PNGs", "No transparent PNG files were found in the input folder.")
+        asset_files = [
+            p for p in input_folder.iterdir()
+            if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+        ]
+        if not asset_files:
+            ext_str = ", ".join(ext.upper().lstrip(".") for ext in SUPPORTED_EXTENSIONS)
+            QMessageBox.warning(
+                self,
+                "No Supported Images",
+                f"No supported images were found in the input folder.\n\nSupported formats: {ext_str}",
+            )
             return
 
-        total = len(png_files)
+        total = len(asset_files)
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
         self.stats_widget.setVisible(True)

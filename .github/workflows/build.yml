@@ -54,7 +54,7 @@ jobs:
       # ── Build with PyInstaller ──
       - name: Build executable
         run: |
-          pyinstaller --noconsole --name PreviewGen --add-data "app.ico${{ runner.os == 'Windows' && ';' || ':' }}." main.py --clean -y
+          pyinstaller --noconsole --name PreviewGen --add-data "app.ico${{ runner.os == 'Windows' && ';' || ':' }}." --collect-all psd_tools --hidden-import PySide6.QtSvg main.py --clean -y
 
       # ── Windows: zip the dist folder with shortcut installer ──
       - name: Package Windows build

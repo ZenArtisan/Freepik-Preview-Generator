@@ -11,6 +11,15 @@ CHECKER_LIGHT = (245, 245, 248, 255)
 CHECKER_DARK = (200, 204, 212, 255)
 SOLID_COLOR = (255, 255, 255)
 DEFAULT_TEXT = "100% TRANSPARENT"
+SUPPORTED_EXTENSIONS: tuple[str, ...] = (
+    ".png",
+    ".webp",
+    ".tif",
+    ".tiff",
+    ".svg",
+    ".svgz",
+    ".psd",
+)
 
 
 @dataclass
@@ -167,9 +176,9 @@ def compose_preview(
     width, height = original.size
     alpha_min, alpha_max = original.getchannel("A").getextrema()
     if alpha_min == 255:
-        raise ValueError("PNG has no transparent pixels")
+        raise ValueError("Image has no transparent pixels (fully opaque)")
     if alpha_max == 0:
-        raise ValueError("PNG is completely transparent")
+        raise ValueError("Image is completely transparent (empty canvas)")
 
     bg = make_background(
         width,
@@ -225,6 +234,88 @@ def compose_preview(
 
     return result.convert("RGB")
 
+def _load_svg(source_path: Path, target_dimension: int = 3600) -> Image.Image:
+    """Rasterize an SVG/SVGZ vector file to a high-resolution RGBA PIL image."""
+    from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt
+    from PySide6.QtGui import QImage, QPainter
+    from PySide6.QtSvg import QSvgRenderer
+
+    renderer = QSvgRenderer(str(source_path))
+    if not renderer.isValid():
+        raise ValueError("Invalid or unreadable SVG vector file")
+
+    default_size = renderer.defaultSize()
+    w = default_size.width()
+    h = default_size.height()
+    if w <= 0 or h <= 0:
+        view_box = renderer.viewBoxF()
+        w = max(1, round(view_box.width()))
+        h = max(1, round(view_box.height()))
+
+    if w <= 0 or h <= 0:
+        w, h = 3000, 3000
+
+    # Scale proportionally so the longest edge reaches a crisp target resolution
+    max_dim = max(w, h)
+    scale = min(max(target_dimension / max_dim, 1.0), 6.0)
+    target_w = max(100, round(w * scale))
+    target_h = max(100, round(h * scale))
+
+    qimg = QImage(target_w, target_h, QImage.Format.Format_ARGB32_Premultiplied)
+    qimg.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(qimg)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    renderer.render(painter)
+    painter.end()
+
+    ba = QByteArray()
+    buf = QBuffer(ba)
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    qimg.save(buf, "PNG")
+    buf.close()
+
+    with Image.open(BytesIO(ba.data())) as pil_img:
+        pil_img.load()
+        return pil_img.convert("RGBA")
+
+
+def _load_psd(source_path: Path) -> Image.Image:
+    """Extract the composite layer with transparency from an Adobe Photoshop PSD file."""
+    try:
+        from psd_tools import PSDImage
+    except ImportError:
+        raise RuntimeError(
+            "psd-tools is required to process PSD files. Please install it with: pip install psd-tools"
+        )
+
+    psd = PSDImage.open(source_path)
+    composite = psd.composite()
+    if composite is None:
+        raise ValueError("Could not extract composite transparency layer from PSD")
+    return composite.convert("RGBA")
+
+
+def load_source_image(source_path: Path) -> Image.Image:
+    """Load an input file (.png, .webp, .tiff, .svg, .psd) into a verified RGBA PIL Image."""
+    ext = source_path.suffix.lower()
+
+    if ext in (".svg", ".svgz"):
+        return _load_svg(source_path)
+
+    if ext == ".psd":
+        return _load_psd(source_path)
+
+    # Standard raster formats (.png, .webp, .tif, .tiff)
+    with Image.open(source_path) as img:
+        if getattr(img, "is_animated", False):
+            img.seek(0)
+        img.load()
+        if img.mode in ("CMYK", "YCbCr"):
+            img = img.convert("RGB")
+        return img.convert("RGBA")
+
 
 def generate_file(
     source_path: Path,
@@ -235,9 +326,8 @@ def generate_file(
     if config is None:
         config = PreviewConfig(text=text if text is not None else DEFAULT_TEXT)
 
-    with Image.open(source_path) as source:
-        source.load()
-        output = compose_preview(source, config)
+    source = load_source_image(source_path)
+    output = compose_preview(source, config)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = output_path.with_suffix(output_path.suffix + ".tmp")
@@ -256,9 +346,8 @@ def preview_jpeg_bytes(
     if config is None:
         config = PreviewConfig(text=text if text is not None else DEFAULT_TEXT)
 
-    with Image.open(source_path) as source:
-        source.load()
-        preview = compose_preview(source, config)
+    source = load_source_image(source_path)
+    preview = compose_preview(source, config)
 
     buffer = BytesIO()
     preview.save(buffer, format="JPEG", quality=90, subsampling=0)
@@ -274,10 +363,11 @@ def process_folder(
 ) -> tuple[int, int, list[str]]:
     files = sorted(
         path for path in input_folder.iterdir()
-        if path.is_file() and path.suffix.lower() == ".png"
+        if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
     )
     if not files:
-        raise ValueError("No PNG files found in the input folder")
+        ext_list = ", ".join(SUPPORTED_EXTENSIONS)
+        raise ValueError(f"No supported images ({ext_list}) found in the input folder")
 
     output_folder.mkdir(parents=True, exist_ok=True)
     success = 0
