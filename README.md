@@ -53,7 +53,7 @@ Because PreviewGen is an independent software project, web browsers may display 
 ### 🪟 Windows (PowerShell)
 Open **PowerShell** and run:
 ```powershell
-irm https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Generator/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Mustaqeem66/Freepik-Preview-Generator/main/install.ps1 | iex
 ```
 - Installs to `%LOCALAPPDATA%\Programs\PreviewGen`
 - Automatically unblocks files (`Unblock-File`) to bypass Windows SmartScreen
@@ -66,7 +66,7 @@ irm https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Generator/mai
 ### 🍎 macOS (Terminal)
 Open **Terminal** and run:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Generator/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Preview-Generator/main/install.sh | bash
 ```
 - Installs directly to `/Applications/PreviewGen.app`
 - Strips Apple Gatekeeper quarantine (`xattr -cr`) to bypass the "Unidentified Developer" block
@@ -78,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Genera
 ### 🐧 Linux (Terminal)
 Open your terminal and run:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Generator/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Preview-Generator/main/install.sh | bash
 ```
 - Installs standalone AppImage to `~/.local/bin/previewgen`
 - Configures permissions (`chmod +x`) and installs system icon
@@ -90,7 +90,7 @@ curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Genera
 ## 📦 Alternative: Manual Download (GitHub Releases)
 
 Prefer downloading manually?
-1. Visit the [**Latest Releases**](https://github.com/Mustaqeem66/Freepik-Prewview-Generator/releases/latest).
+1. Visit the [**Latest Releases**](https://github.com/Mustaqeem66/Freepik-Preview-Generator/releases/latest).
 2. Download your platform package:
    - **Windows**: `PreviewGen-Windows.zip` — Extract and double-click `Install-Desktop-Icon.bat`.
    - **macOS**: `PreviewGen-macOS.dmg` — Open DMG, drag to Applications, run `xattr -cr /Applications/PreviewGen.app` if prompted.
@@ -146,8 +146,8 @@ Prefer downloading manually?
 
 ```bash
 # Clone the repository
-git clone https://github.com/Mustaqeem66/Freepik-Prewview-Generator.git
-cd Freepik-Prewview-Generator
+git clone https://github.com/Mustaqeem66/Freepik-Preview-Generator.git
+cd Freepik-Preview-Generator
 
 # Set up virtual environment
 python -m venv .venv

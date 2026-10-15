@@ -1,13 +1,13 @@
 # ==============================================================================
 # PreviewGen - Windows 1-Click Installer
 # Run in PowerShell:
-# irm https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Generator/main/install.ps1 | iex
+# irm https://raw.githubusercontent.com/Mustaqeem66/Freepik-Preview-Generator/main/install.ps1 | iex
 # ==============================================================================
 
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$Repo = "Mustaqeem66/Freepik-Prewview-Generator"
+$Repo = "Mustaqeem66/Freepik-Preview-Generator"
 $AppName = "PreviewGen"
 $InstallDir = "$env:LOCALAPPDATA\Programs\$AppName"
 $Desktop = [Environment]::GetFolderPath("Desktop")

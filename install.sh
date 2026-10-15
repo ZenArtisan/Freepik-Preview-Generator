@@ -2,12 +2,12 @@
 # ==============================================================================
 # PreviewGen - macOS & Linux 1-Click Installer
 # Run in Terminal:
-# curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Generator/main/install.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Preview-Generator/main/install.sh | bash
 # ==============================================================================
 
 set -e
 
-REPO="Mustaqeem66/Freepik-Prewview-Generator"
+REPO="Mustaqeem66/Freepik-Preview-Generator"
 APP_NAME="PreviewGen"
 OS="$(uname -s)"
 
