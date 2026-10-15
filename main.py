@@ -32,84 +32,84 @@ DARK = "dark"
 
 THEME = {
     LIGHT: {
-        "bg":           "#F5F5F7",
+        "bg":           "#F7FBFD",
         "card_bg":      "#FFFFFF",
-        "card_border":  "#E5E5EA",
-        "text":         "#1D1D1F",
-        "text_sec":     "#6E6E73",
-        "text_muted":   "#86868B",
+        "card_border":  "#D6E6EF",
+        "text":         "#182C38",
+        "text_sec":     "#4D6775",
+        "text_muted":   "#7FA6B8",
         "field_bg":     "#FFFFFF",
-        "field_border": "#D1D1D6",
-        "field_focus":  "#0071E3",
-        "accent":       "#0071E3",
-        "accent_hover": "#0077ED",
-        "accent_press": "#0062C4",
-        "danger":       "#FF3B30",
-        "danger_hover": "rgba(255, 59, 48, 0.10)",
-        "chip_bg":      "#F2F2F7",
-        "chip_border":  "#E5E5EA",
-        "chip_hover":   "#E5E5EA",
-        "scroll_bg":    "#F5F5F7",
-        "scroll_handle":"#C7C7CC",
-        "scroll_hover": "#8E8E93",
-        "slider_track": "#E5E5EA",
-        "slider_fill":  "#0071E3",
+        "field_border": "#D6E6EF",
+        "field_focus":  "#7FA6B8",
+        "accent":       "#7FA6B8",
+        "accent_hover": "#6C94A6",
+        "accent_press": "#5A8294",
+        "danger":       "#E05252",
+        "danger_hover": "rgba(224, 82, 82, 0.10)",
+        "chip_bg":      "#D6E6EF",
+        "chip_border":  "#D6E6EF",
+        "chip_hover":   "#C2D7E3",
+        "scroll_bg":    "#F7FBFD",
+        "scroll_handle":"#C4D8E3",
+        "scroll_hover": "#7FA6B8",
+        "slider_track": "#D6E6EF",
+        "slider_fill":  "#7FA6B8",
         "slider_knob":  "#FFFFFF",
-        "check_border": "#C7C7CC",
-        "check_active": "#0071E3",
+        "check_border": "#AEC8D6",
+        "check_active": "#7FA6B8",
         "preview_bg":   "#FFFFFF",
-        "preview_bdr":  "#E5E5EA",
-        "success_bg":   "#D1FAE5",
-        "success_fg":   "#065F46",
-        "fail_bg":      "#FEE2E2",
-        "fail_fg":      "#991B1B",
-        "info_bg":      "#EBF5FF",
-        "info_fg":      "#0071E3",
-        "disabled_fg":  "#A1A1A6",
-        "disabled_bg":  "#F2F2F7",
-        "dropdown_arr": "#6E6E73",
-        "toggle_bg":    "#E5E5EA",
-        "toggle_bdr":   "#D1D1D6",
+        "preview_bdr":  "#D6E6EF",
+        "success_bg":   "#E6F7F0",
+        "success_fg":   "#0D7A53",
+        "fail_bg":      "#FDECEE",
+        "fail_fg":      "#A32231",
+        "info_bg":      "#D6E6EF",
+        "info_fg":      "#1E4E63",
+        "disabled_fg":  "#9CB7C4",
+        "disabled_bg":  "#F0F6FA",
+        "dropdown_arr": "#4D6775",
+        "toggle_bg":    "#D6E6EF",
+        "toggle_bdr":   "#C4D8E3",
     },
     DARK: {
-        "bg":           "#161618",
-        "card_bg":      "#212124",
-        "card_border":  "#2E2E32",
-        "text":         "#F5F5F7",
-        "text_sec":     "#98989D",
-        "text_muted":   "#76767A",
-        "field_bg":     "#2C2C2E",
-        "field_border": "#3A3A3C",
-        "field_focus":  "#0A84FF",
-        "accent":       "#0A84FF",
-        "accent_hover": "#2997FF",
-        "accent_press": "#0071E3",
-        "danger":       "#FF453A",
-        "danger_hover": "rgba(255, 69, 58, 0.14)",
-        "chip_bg":      "#2C2C2E",
-        "chip_border":  "#3A3A3C",
-        "chip_hover":   "#3A3A3C",
-        "scroll_bg":    "#161618",
-        "scroll_handle":"#3A3A3C",
-        "scroll_hover": "#636366",
-        "slider_track": "#3A3A3C",
-        "slider_fill":  "#0A84FF",
-        "slider_knob":  "#FFFFFF",
-        "check_border": "#48484A",
-        "check_active": "#0A84FF",
-        "preview_bg":   "#0E0E10",
-        "preview_bdr":  "#2E2E32",
-        "success_bg":   "#064E3B",
-        "success_fg":   "#6EE7B7",
-        "fail_bg":      "#7F1D1D",
-        "fail_fg":      "#FCA5A5",
-        "info_bg":      "#1E3A5F",
-        "info_fg":      "#93C5FD",
-        "disabled_fg":  "#636366",
-        "disabled_bg":  "#1C1C1E",
-        "dropdown_arr": "#98989D",
-        "toggle_bg":    "#2C2C2E",
-        "toggle_bdr":   "#3A3A3C",
+        "bg":           "#0E171E",
+        "card_bg":      "#15222B",
+        "card_border":  "#223542",
+        "text":         "#F7FBFD",
+        "text_sec":     "#D6E6EF",
+        "text_muted":   "#8AA7B7",
+        "field_bg":     "#1C2C37",
+        "field_border": "#2D4454",
+        "field_focus":  "#93BDD0",
+        "accent":       "#7FA6B8",
+        "accent_hover": "#93BDD0",
+        "accent_press": "#6B93A5",
+        "danger":       "#F87171",
+        "danger_hover": "rgba(248, 113, 113, 0.14)",
+        "chip_bg":      "#1C2C37",
+        "chip_border":  "#2D4454",
+        "chip_hover":   "#263B4A",
+        "scroll_bg":    "#0E171E",
+        "scroll_handle":"#263B4A",
+        "scroll_hover": "#3A566A",
+        "slider_track": "#223542",
+        "slider_fill":  "#7FA6B8",
+        "slider_knob":  "#F7FBFD",
+        "check_border": "#3A566A",
+        "check_active": "#7FA6B8",
+        "preview_bg":   "#0A1117",
+        "preview_bdr":  "#223542",
+        "success_bg":   "#0D3325",
+        "success_fg":   "#5EEAD4",
+        "fail_bg":      "#45141A",
+        "fail_fg":      "#FDA4AF",
+        "info_bg":      "#1A3342",
+        "info_fg":      "#BAE6FD",
+        "disabled_fg":  "#486374",
+        "disabled_bg":  "#121C24",
+        "dropdown_arr": "#D6E6EF",
+        "toggle_bg":    "#1C2C37",
+        "toggle_bdr":   "#2D4454",
     },
 }
 
@@ -332,9 +332,9 @@ class ThemeSwitch(QWidget):
 
         # Track
         if self._is_dark:
-            track_color = QColor("#333333")
+            track_color = QColor("#223542")
         else:
-            track_color = QColor("#E5E7EB")
+            track_color = QColor("#D6E6EF")
         p.setBrush(QBrush(track_color))
         p.setPen(Qt.PenStyle.NoPen)
         p.drawRoundedRect(0, 0, w, h, r, r)
@@ -345,7 +345,7 @@ class ThemeSwitch(QWidget):
         knob_x = (w - knob_d - knob_margin) if self._is_dark else knob_margin
         knob_y = knob_margin
 
-        p.setBrush(QBrush(QColor("#FFFFFF") if not self._is_dark else QColor("#111111")))
+        p.setBrush(QBrush(QColor("#0E171E") if self._is_dark else QColor("#FFFFFF")))
         p.setPen(Qt.PenStyle.NoPen)
         p.drawEllipse(int(knob_x), int(knob_y), int(knob_d), int(knob_d))
 
@@ -356,9 +356,8 @@ class ThemeSwitch(QWidget):
             p.setPen(QPen(QColor("#FBBF24")))
             p.drawText(int(knob_margin + 4), 0, int(knob_d), h, Qt.AlignmentFlag.AlignCenter, "☀")
         else:
-            p.setPen(QPen(QColor("#6366F1")))
+            p.setPen(QPen(QColor("#7FA6B8")))
             p.drawText(int(w - knob_d - knob_margin - 4), 0, int(knob_d), h, Qt.AlignmentFlag.AlignCenter, "🌙")
-
         p.end()
 
 
@@ -395,7 +394,7 @@ class ColorSwatchButton(QPushButton):
         hex_code = self._color.name().upper()
         lum = self._color.red() * 0.299 + self._color.green() * 0.587 + self._color.blue() * 0.114
         fg = "#FFFFFF" if lum < 140 else "#111111"
-        border = "#6366F1" if hex_code in ("#FFFFFF", "#F8FAFC", "#F1F5F9", "#F3F4F6") else hex_code
+        border = "#7FA6B8" if hex_code in ("#FFFFFF", "#F8FAFC", "#F7FBFD", "#F1F5F9", "#F3F4F6") else hex_code
         self.setText(f"  {hex_code}  ")
         self.setStyleSheet(f"""
             QPushButton {{
@@ -408,7 +407,7 @@ class ColorSwatchButton(QPushButton):
                 padding: 4px 10px;
             }}
             QPushButton:hover {{
-                border-color: #6366F1;
+                border-color: #7FA6B8;
             }}
         """)
 

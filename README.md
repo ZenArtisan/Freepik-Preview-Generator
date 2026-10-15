@@ -98,6 +98,48 @@ Prefer downloading manually?
 
 ---
 
+## 📖 How to Use PreviewGen (Step-by-Step Guide)
+
+PreviewGen makes bulk preview creation effortless in 6 simple steps:
+
+```
+ 1. Select Folder ──► 2. Browse Files ──► 3. Adjust 3D Angle ──► 4. Add Brand Logo ──► 5. Pick Colors ──► 6. Batch Export!
+    (or ZIP file)       (◀ Prev / Next ▶)   (Orbit 360° View)      (Freeform Sliders)     (Diagonal Split)     (1-Click JPGs)
+```
+
+1. **Select Input Folder (or ZIP Archive)**:
+   - Click **Browse…** in panel `1 · Folders` and pick a folder containing your transparent assets.
+   - You can drop folders with **PNG, WebP, SVG, TIFF, PSD, 3D models (GLB, OBJ, STL, BLEND)**, or even **`.zip` files**!
+2. **Flip Through Files with Live Viewport Navigation**:
+   - Use the **`◀ Prev`** and **`Next ▶`** buttons in the toolbar (or press **Left/Right Arrow keys** on your keyboard) to preview any asset in your folder instantly.
+3. **Rotate 3D Models in Full 360° (When viewing 3D files)**:
+   - Click and drag your mouse directly on the preview image to orbit the model in 360°.
+   - Or click an angle preset like **Isometric (3/4)**, **Front**, **Side**, **Top**, or **Back**.
+4. **Add Brand Watermarks (Logo, Text, or Both)**:
+   - Upload your logo image (`.png`, `.svg`, `.ico`) and adjust **Scale** and **Opacity**.
+   - Use the **X** and **Y** position sliders to place your logo and watermark text at any exact percentage coordinate on the canvas.
+5. **Choose Split Direction & Background Color**:
+   - Choose whether the solid color sits on the Left or Right half.
+   - Click the color swatch or choose a preset (White, Off-White, Light Gray, Dark).
+6. **Click "Generate All JPG Previews"**:
+   - The asynchronous worker processes hundreds of files in the background without freezing the UI.
+   - Once finished, click **Open Output Folder** to inspect your ready-to-upload marketplace JPG previews!
+
+---
+
+## 📦 GitHub Releases vs. GitHub Packages (FAQ)
+
+> **What are "GitHub Packages" shown on the repository, and do we need them?**
+
+* **GitHub Releases (What PreviewGen Uses)**:
+  * **Purpose**: Distributes ready-to-run desktop applications (`.exe` for Windows, `.dmg` for macOS, `.AppImage` for Linux).
+  * **For Users**: End-users download and install the complete app directly without compiling code.
+* **GitHub Packages**:
+  * **Purpose**: A code library repository for developers (similar to `npm`, `pip`/PyPI, Docker Container Registry, or NuGet).
+  * **For Developers**: Used when publishing reusable Python modules (e.g. `pip install previewgen-core`) so other developers can import them into their code.
+  * **Verdict**: For standalone desktop software like PreviewGen, **GitHub Releases is the official and correct distribution hub**. You do not need to publish to GitHub Packages unless we split the rendering engine into an open-source library for other developers.
+
+---
 ## 🚀 Key Features
 
 ### 1. Multi-Format 2D Ingestion (PNG, WebP, SVG, TIFF, PSD)
@@ -140,10 +182,10 @@ Prefer downloading manually?
 - **Outer Outline / Stroke**: Toggleable stroke with custom color and thickness (Thin, Normal, Medium, Thick, Extra Bold) so text remains readable over any image.
 - **Live Sliders**: Real-time Font Scale (50% to 180%) and Text Opacity (10% to 100%).
 
-### 8. Modern Dual-Theme Interface
-- **Pure Dark Mode**: Designed for creative night owls — true dark grays, high-contrast inputs, zero harsh blue tints.
-- **Crisp Light Mode**: Clean, distraction-free modern aesthetic.
-- **Animated Toggle Switch**: One-click sun/moon switch in the header with session persistence.
+### 8. Premium Design System (Ice Blue & Slate Palette)
+- **Light Mode**: Crisp icy-white background (`#F7FBFD`), soft mist blue borders and chips (`#D6E6EF`), and slate steel blue accents (`#7FA6B8`).
+- **Dark Mode**: Deep nocturnal slate background (`#0E171E`), elevated dark surfaces (`#15222B`), luminous icy typography (`#F7FBFD`), and complementary slate blue highlights.
+- **Animated Sun/Moon Switch**: Smooth pill-style macOS theme toggle with session persistence.
 
 ### 9. Live Debounced Viewport & Navigation
 - **Instant Feedback**: Any slider movement, color selection, or text edit reflects in the live preview within 120ms.
