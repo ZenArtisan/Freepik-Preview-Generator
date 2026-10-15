@@ -1,7 +1,7 @@
 # PreviewGen
 
 **The Automated Batch Preview Studio for Marketplace Contributors & Digital Artists.**  
-Transform folders of transparent **PNG, WebP, SVG, TIFF, and Photoshop (PSD)** assets into marketplace-compliant, split-diagonal JPG previews in seconds.
+Transform folders of transparent **2D assets (PNG, WebP, SVG, TIFF, PSD)** and **3D models (GLB, GLTF, OBJ, STL, PLY, BLEND)** into marketplace-compliant, split-diagonal JPG previews in seconds.
 
 ---
 
@@ -107,28 +107,50 @@ Prefer downloading manually?
 - **TIFF / TIF**: High-bit depth print cutouts with automatic CMYK $\to$ sRGB color profile transform.
 - **PSD (Photoshop)**: Headless composite layer extraction directly from Photoshop binaries via `psd-tools` — no Adobe software required!
 
-### 2. Diagonal Split Backgrounds
+### 2. Full 360° 3D Model Studio (GLB, GLTF, OBJ, STL, PLY, BLEND)
+- **360° Interactive Orbit**: Click and drag your mouse directly on the preview image to rotate 3D models from any angle in real-time.
+- **Studio Angle Presets**: 1-click presets for **Isometric 3/4**, **Front**, **Side**, **Top**, and **Back** views.
+- **Fine-Grained Controls**: Sliders for horizontal **Yaw (0°–360°)** and vertical **Pitch (-85° to +85°)**.
+- **Headless Studio Lighting**: Directional key light + ambient fill with smooth shading and back-face culling onto a transparent canvas.
+- **Blender Integration**: Native headless rendering of `.blend` scene files via local Blender CLI.
+
+### 3. File-by-File Viewport Navigation
+- **Previous & Next Buttons**: Easily cycle through any asset in your chosen folder using `◀ Prev` and `Next ▶` buttons.
+- **Live File Counter**: Visual badge showing current position (e.g. `File 3 / 24`).
+- **Keyboard Shortcuts**: Use **Left Arrow** (`◀`) and **Right Arrow** (`▶`) on your keyboard to flip through files effortlessly.
+- **Auto-Adapting Controls**: The 3D orbit panel automatically appears when browsing 3D models, and collapses when viewing 2D images.
+### 4. Custom Brand Logo & Icon Overlay
+- **Upload Any Logo**: Upload brand watermarks (`.png`, `.webp`, `.svg`, `.ico`).
+- **Independent Sizing & Opacity**: Scale logos from 20% to 250% and adjust opacity from 10% to 100%.
+- **Freeform Position Sliders**: Position logos and text anywhere with continuous horizontal (X: 0–100%) and vertical (Y: 0–100%) offset sliders.
+- **Dual Branding**: Run logo only, text watermark only, or display both concurrently.
+
+### 5. Automated ZIP Archive Ingestion & Auto-Cleanup
+- **Drop ZIP Files Directly**: Points to folders containing `.zip` archives.
+- **Background Decompression**: Automatically extracts archives in memory/temp isolation, discovers all enclosed 2D and 3D assets, and renders previews.
+- **Safe Auto-Cleanup**: Automatically deletes all temporary unzipped artifacts immediately upon completion across Windows, macOS, and Linux.
+
+### 6. Diagonal Split Backgrounds
 - **Two Equal-Area Triangles**: Cuts the canvas from corner to corner.
 - **Directional Flip**: Choose between *Left Solid / Right Transparent* or *Left Transparent / Right Solid*.
 - **Interactive Color Palette**: Pick any custom hex color or select from one-click presets (White, Off-White, Light Gray, Dark).
 
-### 3. Watermark & Typography Engine
+### 7. Typography & Outline Engine
 - **Customizable Label**: Defaults to `100% TRANSPARENT`, or enter your own custom text (or leave blank).
-- **5 Anchor Positions**: Top-Left, Top-Right, Center, Bottom-Left, Bottom-Right.
 - **Outer Outline / Stroke**: Toggleable stroke with custom color and thickness (Thin, Normal, Medium, Thick, Extra Bold) so text remains readable over any image.
 - **Live Sliders**: Real-time Font Scale (50% to 180%) and Text Opacity (10% to 100%).
 
-### 4. Modern Dual-Theme Interface
+### 8. Modern Dual-Theme Interface
 - **Pure Dark Mode**: Designed for creative night owls — true dark grays, high-contrast inputs, zero harsh blue tints.
 - **Crisp Light Mode**: Clean, distraction-free modern aesthetic.
 - **Animated Toggle Switch**: One-click sun/moon switch in the header with session persistence.
 
-### 5. Live Debounced Viewport
+### 9. Live Debounced Viewport & Navigation
 - **Instant Feedback**: Any slider movement, color selection, or text edit reflects in the live preview within 120ms.
 - **View Modes**: Switch between responsive "Fit to View" and "Original 100%" pixel inspection.
-- **Image Metadata & Badge**: Displays active filename, format badge (e.g. `[PSD]`, `[SVG]`, `[WEBP]`), and resolution underneath the viewport.
+- **Image Metadata & Badge**: Displays active filename, format badge (e.g. `[GLB]`, `[PSD]`, `[SVG]`, `[WEBP]`), and resolution underneath the viewport.
 
-### 6. High-Throughput Batch Engine
+### 10. High-Throughput Batch Engine
 - **Non-Blocking Multithreading**: Batch rendering runs in a separate thread pool so the user interface never freezes.
 - **Live Metrics**: Real-time progress bar, success counters, error counts, and pending image badges.
 - **Single-Click Cancel**: Abort long-running batches safely at any time.

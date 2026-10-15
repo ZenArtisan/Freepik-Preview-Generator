@@ -7,7 +7,7 @@ if not exist ".venv\Scripts\python.exe" (
 )
 call ".venv\Scripts\activate.bat"
 python -m pip install --upgrade pyinstaller
-pyinstaller --noconsole --name PreviewGen --icon=app.ico --add-data "app.ico;." --collect-all psd_tools --hidden-import PySide6.QtSvg main.py --clean -y
+pyinstaller --noconsole --name PreviewGen --icon=app.ico --add-data "app.ico;." --collect-all psd_tools --collect-all trimesh --hidden-import PySide6.QtSvg main.py --clean -y
 if errorlevel 1 (
   echo Build failed. Read the error above.
   pause

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from processor import (
     DEFAULT_TEXT, PreviewConfig, preview_jpeg_bytes, process_folder,
-    SUPPORTED_EXTENSIONS
+    SUPPORTED_EXTENSIONS, SUPPORTED_3D_EXTENSIONS
 )
 
 
@@ -422,6 +422,46 @@ class ColorSwatchButton(QPushButton):
             if selected.isValid():
                 self.set_color(selected)
 
+# ──────────────────────────────────────────────────────────────────────
+# Interactive 3D Orbit Preview Label
+# ──────────────────────────────────────────────────────────────────────
+class InteractivePreviewLabel(QLabel):
+    orbitDelta = Signal(float, float)  # dyaw, dpitch
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self._is_dragging = False
+        self._drag_start = None
+        self._is_3d = False
+
+    def set_3d_mode(self, is_3d: bool) -> None:
+        self._is_3d = is_3d
+        if is_3d:
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def mousePressEvent(self, event):
+        if self._is_3d and event.button() == Qt.MouseButton.LeftButton:
+            self._is_dragging = True
+            self._drag_start = event.pos()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._is_dragging and self._drag_start is not None:
+            dx = event.pos().x() - self._drag_start.x()
+            dy = event.pos().y() - self._drag_start.y()
+            self._drag_start = event.pos()
+            self.orbitDelta.emit(float(dx * 0.7), float(-dy * 0.7))
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._is_dragging:
+            self._is_dragging = False
+            if self._is_3d:
+                self.setCursor(Qt.CursorShape.OpenHandCursor)
+        super().mouseReleaseEvent(event)
 
 # ──────────────────────────────────────────────────────────────────────
 # Background Worker
@@ -474,10 +514,13 @@ class MainWindow(QMainWindow):
         self.thread_pool.setMaxThreadCount(2)
         self.worker: BatchWorker | None = None
         self.preview_source: Path | None = None
+        self.file_list: list[Path] = []
+        self.current_file_idx: int = 0
+        self.logo_path: str = ""
+        self._session_zip_dir: Path | None = None
         self._raw_pixmap: QPixmap | None = None
         self._fit_to_view = True
         self._current_theme = LIGHT
-
         # Debounce timer
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)
@@ -578,11 +621,11 @@ class MainWindow(QMainWindow):
         card, lay = self._card()
         lay.addWidget(self._section_title("1 ·  Folders"))
 
-        lay.addWidget(self._field_label("Input Folder (PNG, WebP, SVG, TIFF, PSD)"))
+        lay.addWidget(self._field_label("Input Folder or ZIP (PNG, WebP, SVG, TIFF, PSD, 3D, ZIP)"))
         in_row = QHBoxLayout()
         in_row.setSpacing(8)
         self.input_edit = QLineEdit()
-        self.input_edit.setPlaceholderText("Folder containing PNG, WebP, SVG, TIFF, or PSD files")
+        self.input_edit.setPlaceholderText("Folder containing 2D assets, 3D models, or ZIP archives")
         self.input_browse_btn = QPushButton("Browse…")
         self.input_browse_btn.setProperty("class", "SecondaryButton")
         self.input_browse_btn.clicked.connect(self.choose_input)
@@ -641,24 +684,142 @@ class MainWindow(QMainWindow):
 
     def _build_text_card(self) -> QFrame:
         card, lay = self._card()
-        lay.addWidget(self._section_title("3 ·  Watermark Text & Customization"))
+        lay.addWidget(self._section_title("3 ·  Branding & Watermark (Logo + Text)"))
 
-        lay.addWidget(self._field_label("Label Content (leave empty for no text)"))
+        # ── Logo / Icon Upload Section ──
+        lay.addWidget(self._field_label("Brand Logo / Icon (Optional)"))
+        logo_btn_row = QHBoxLayout()
+        logo_btn_row.setSpacing(8)
+        self.upload_logo_btn = QPushButton("Upload Logo / Icon…")
+        self.upload_logo_btn.setProperty("class", "SecondaryButton")
+        self.upload_logo_btn.clicked.connect(self.choose_logo)
+        self.clear_logo_btn = QPushButton("Clear")
+        self.clear_logo_btn.setProperty("class", "DangerButton")
+        self.clear_logo_btn.setEnabled(False)
+        self.clear_logo_btn.clicked.connect(self.clear_logo)
+        logo_btn_row.addWidget(self.upload_logo_btn, 1)
+        logo_btn_row.addWidget(self.clear_logo_btn)
+        lay.addLayout(logo_btn_row)
+
+        self.logo_info_lbl = QLabel("No logo uploaded")
+        self.logo_info_lbl.setStyleSheet("font-size: 11px; color: #6B7280;")
+        lay.addWidget(self.logo_info_lbl)
+
+        # Logo controls widget
+        self.logo_options_widget = QWidget()
+        lol = QVBoxLayout(self.logo_options_widget)
+        lol.setContentsMargins(0, 0, 0, 0)
+        lol.setSpacing(8)
+
+        l_scale_hdr = QHBoxLayout()
+        l_scale_hdr.addWidget(self._field_label("Logo Scale"))
+        l_scale_hdr.addStretch()
+        self.logo_scale_lbl = QLabel("100%")
+        self.logo_scale_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #818CF8;")
+        l_scale_hdr.addWidget(self.logo_scale_lbl)
+        lol.addLayout(l_scale_hdr)
+
+        self.logo_scale_slider = QSlider(Qt.Orientation.Horizontal)
+        self.logo_scale_slider.setRange(20, 250)
+        self.logo_scale_slider.setValue(100)
+        self.logo_scale_slider.valueChanged.connect(self.on_logo_scale_changed)
+        lol.addWidget(self.logo_scale_slider)
+
+        l_op_hdr = QHBoxLayout()
+        l_op_hdr.addWidget(self._field_label("Logo Opacity"))
+        l_op_hdr.addStretch()
+        self.logo_op_lbl = QLabel("90%")
+        self.logo_op_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #818CF8;")
+        l_op_hdr.addWidget(self.logo_op_lbl)
+        lol.addLayout(l_op_hdr)
+
+        self.logo_opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.logo_opacity_slider.setRange(10, 100)
+        self.logo_opacity_slider.setValue(90)
+        self.logo_opacity_slider.valueChanged.connect(self.on_logo_opacity_changed)
+        lol.addWidget(self.logo_opacity_slider)
+
+        lol.addWidget(self._field_label("Logo Position Preset"))
+        self.logo_pos_combo = QComboBox()
+        self.logo_pos_combo.addItem("Top-Right (Default)", (0.88, 0.05))
+        self.logo_pos_combo.addItem("Top-Left", (0.05, 0.05))
+        self.logo_pos_combo.addItem("Center", (0.50, 0.50))
+        self.logo_pos_combo.addItem("Bottom-Right", (0.88, 0.90))
+        self.logo_pos_combo.addItem("Bottom-Left", (0.05, 0.90))
+        self.logo_pos_combo.addItem("Custom Coordinates", "custom")
+        self.logo_pos_combo.currentIndexChanged.connect(self.on_logo_pos_combo_changed)
+        lol.addWidget(self.logo_pos_combo)
+
+        l_xy_row = QHBoxLayout()
+        l_xy_row.setSpacing(6)
+        l_xy_row.addWidget(self._field_label("Logo X:"))
+        self.logo_x_slider = QSlider(Qt.Orientation.Horizontal)
+        self.logo_x_slider.setRange(0, 100)
+        self.logo_x_slider.setValue(88)
+        self.logo_x_slider.valueChanged.connect(self.on_logo_coords_changed)
+        self.logo_x_lbl = QLabel("88%")
+        self.logo_x_lbl.setFixedWidth(30)
+        self.logo_x_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #818CF8;")
+        l_xy_row.addWidget(self.logo_x_slider, 1)
+        l_xy_row.addWidget(self.logo_x_lbl)
+
+        l_xy_row.addWidget(self._field_label("Logo Y:"))
+        self.logo_y_slider = QSlider(Qt.Orientation.Horizontal)
+        self.logo_y_slider.setRange(0, 100)
+        self.logo_y_slider.setValue(5)
+        self.logo_y_slider.valueChanged.connect(self.on_logo_coords_changed)
+        self.logo_y_lbl = QLabel("5%")
+        self.logo_y_lbl.setFixedWidth(30)
+        self.logo_y_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #818CF8;")
+        l_xy_row.addWidget(self.logo_y_slider, 1)
+        l_xy_row.addWidget(self.logo_y_lbl)
+        lol.addLayout(l_xy_row)
+
+        self.logo_options_widget.setVisible(False)
+        lay.addWidget(self.logo_options_widget)
+
+        # ── Text Watermark Section ──
+        lay.addWidget(self._field_label("Watermark Text (leave empty for none)"))
         self.text_edit = QLineEdit(DEFAULT_TEXT)
         self.text_edit.setPlaceholderText("e.g. 100% TRANSPARENT (or blank for none)")
         self.text_edit.textChanged.connect(self.schedule_preview)
         lay.addWidget(self.text_edit)
 
-        lay.addWidget(self._field_label("Text Position"))
+        lay.addWidget(self._field_label("Text Position Preset"))
         self.position_combo = QComboBox()
-        self.position_combo.addItem("Top-Left Corner (Recommended)", "top-left")
-        self.position_combo.addItem("Top-Right Corner", "top-right")
-        self.position_combo.addItem("Center of Image", "center")
-        self.position_combo.addItem("Bottom-Left Corner", "bottom-left")
-        self.position_combo.addItem("Bottom-Right Corner", "bottom-right")
-        self.position_combo.currentIndexChanged.connect(self.schedule_preview)
+        self.position_combo.addItem("Top-Left Corner (Recommended)", (0.05, 0.05))
+        self.position_combo.addItem("Top-Right Corner", (0.95, 0.05))
+        self.position_combo.addItem("Center of Image", (0.50, 0.50))
+        self.position_combo.addItem("Bottom-Left Corner", (0.05, 0.95))
+        self.position_combo.addItem("Bottom-Right Corner", (0.95, 0.95))
+        self.position_combo.addItem("Custom Coordinates", "custom")
+        self.position_combo.currentIndexChanged.connect(self.on_text_pos_combo_changed)
         lay.addWidget(self.position_combo)
 
+        t_xy_row = QHBoxLayout()
+        t_xy_row.setSpacing(6)
+        t_xy_row.addWidget(self._field_label("Text X:"))
+        self.text_x_slider = QSlider(Qt.Orientation.Horizontal)
+        self.text_x_slider.setRange(0, 100)
+        self.text_x_slider.setValue(5)
+        self.text_x_slider.valueChanged.connect(self.on_text_coords_changed)
+        self.text_x_lbl = QLabel("5%")
+        self.text_x_lbl.setFixedWidth(30)
+        self.text_x_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #818CF8;")
+        t_xy_row.addWidget(self.text_x_slider, 1)
+        t_xy_row.addWidget(self.text_x_lbl)
+
+        t_xy_row.addWidget(self._field_label("Text Y:"))
+        self.text_y_slider = QSlider(Qt.Orientation.Horizontal)
+        self.text_y_slider.setRange(0, 100)
+        self.text_y_slider.setValue(5)
+        self.text_y_slider.valueChanged.connect(self.on_text_coords_changed)
+        self.text_y_lbl = QLabel("5%")
+        self.text_y_lbl.setFixedWidth(30)
+        self.text_y_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #818CF8;")
+        t_xy_row.addWidget(self.text_y_slider, 1)
+        t_xy_row.addWidget(self.text_y_lbl)
+        lay.addLayout(t_xy_row)
         lay.addWidget(self._field_label("Text Fill Color"))
         t_color_row = QHBoxLayout()
         t_color_row.setSpacing(6)
@@ -785,10 +946,32 @@ class MainWindow(QMainWindow):
 
     def _build_preview_card(self) -> QFrame:
         card, lay = self._card()
-
         toolbar = QHBoxLayout()
-        toolbar.setSpacing(10)
+        toolbar.setSpacing(8)
         toolbar.addWidget(self._section_title("Live Preview"))
+
+        # File navigation controls (Previous / Counter / Next)
+        self.prev_btn = QPushButton("◀ Prev")
+        self.prev_btn.setProperty("class", "SecondaryButton")
+        self.prev_btn.setEnabled(False)
+        self.prev_btn.setToolTip("View previous image in folder (Left Arrow)")
+        self.prev_btn.clicked.connect(self.go_prev_file)
+
+        self.file_counter_lbl = QLabel("0 / 0")
+        self.file_counter_lbl.setStyleSheet(
+            "font-size: 11px; font-weight: 700; padding: 4px 10px; "
+            "background: rgba(99, 102, 241, 0.12); color: #818CF8; border-radius: 6px;"
+        )
+
+        self.next_btn = QPushButton("Next ▶")
+        self.next_btn.setProperty("class", "SecondaryButton")
+        self.next_btn.setEnabled(False)
+        self.next_btn.setToolTip("View next image in folder (Right Arrow)")
+        self.next_btn.clicked.connect(self.go_next_file)
+
+        toolbar.addWidget(self.prev_btn)
+        toolbar.addWidget(self.file_counter_lbl)
+        toolbar.addWidget(self.next_btn)
         toolbar.addStretch()
 
         self.fit_view_btn = QPushButton("Fit to View")
@@ -804,13 +987,70 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.refresh_btn)
         lay.addLayout(toolbar)
 
+        # ─── 3D Orbit Control Bar (Visible for 3D assets) ───
+        self.panel_3d = QFrame()
+        self.panel_3d.setStyleSheet("background: transparent; border: none;")
+        p3d_lay = QVBoxLayout(self.panel_3d)
+        p3d_lay.setContentsMargins(0, 0, 0, 4)
+        p3d_lay.setSpacing(6)
+
+        h3d_row = QHBoxLayout()
+        h3d_row.setSpacing(6)
+        self.orbit_hint = QLabel("🎮 3D 360° View: Drag preview or use angle presets:")
+        self.orbit_hint.setStyleSheet("font-size: 11px; font-weight: 700; color: #818CF8;")
+        h3d_row.addWidget(self.orbit_hint)
+        h3d_row.addStretch()
+
+        for name, (yaw, pitch) in [
+            ("Isometric 3/4", (45, 30)),
+            ("Front", (0, 0)),
+            ("Side", (90, 0)),
+            ("Top", (0, 85)),
+            ("Back", (180, 0)),
+        ]:
+            btn = QPushButton(name)
+            btn.setProperty("class", "PresetChip")
+            btn.clicked.connect(lambda _, y=yaw, p=pitch: self.set_3d_angle(y, p))
+            h3d_row.addWidget(btn)
+        p3d_lay.addLayout(h3d_row)
+
+        s3d_row = QHBoxLayout()
+        s3d_row.setSpacing(10)
+        s3d_row.addWidget(self._field_label("Yaw (0-360°):"))
+        self.yaw_slider = QSlider(Qt.Orientation.Horizontal)
+        self.yaw_slider.setRange(0, 360)
+        self.yaw_slider.setValue(45)
+        self.yaw_slider.valueChanged.connect(self.on_yaw_changed)
+        self.yaw_val_lbl = QLabel("45°")
+        self.yaw_val_lbl.setFixedWidth(36)
+        self.yaw_val_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #818CF8;")
+        s3d_row.addWidget(self.yaw_slider, 1)
+        s3d_row.addWidget(self.yaw_val_lbl)
+
+        s3d_row.addWidget(self._field_label("Pitch:"))
+        self.pitch_slider = QSlider(Qt.Orientation.Horizontal)
+        self.pitch_slider.setRange(-85, 85)
+        self.pitch_slider.setValue(30)
+        self.pitch_slider.valueChanged.connect(self.on_pitch_changed)
+        self.pitch_val_lbl = QLabel("30°")
+        self.pitch_val_lbl.setFixedWidth(36)
+        self.pitch_val_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #818CF8;")
+        s3d_row.addWidget(self.pitch_slider, 1)
+        s3d_row.addWidget(self.pitch_val_lbl)
+        p3d_lay.addLayout(s3d_row)
+
+        self.panel_3d.setVisible(False)
+        lay.addWidget(self.panel_3d)
+
+        # Scrollable image canvas with interactive drag orbit
         self.preview_scroll = QScrollArea()
         self.preview_scroll.setWidgetResizable(True)
         self.preview_scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.preview_label = QLabel("Select an input folder to view preview")
+        self.preview_label = InteractivePreviewLabel("Select an input folder to view preview")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.preview_label.orbitDelta.connect(self.on_orbit_drag)
         self.preview_scroll.setWidget(self.preview_label)
         lay.addWidget(self.preview_scroll, 1)
 
@@ -860,8 +1100,14 @@ class MainWindow(QMainWindow):
         )
 
         # Accent-coloured value labels
-        for lbl in (self.scale_val_lbl, self.thick_val_lbl, self.op_val_lbl):
-            lbl.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {t['accent']};")
+        for lbl in (self.scale_val_lbl, self.thick_val_lbl, self.op_val_lbl, self.yaw_val_lbl, self.pitch_val_lbl):
+            lbl.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {t['accent']};")
+
+        self.orbit_hint.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {t['accent']};")
+        self.file_counter_lbl.setStyleSheet(
+            f"font-size: 11px; font-weight: 700; padding: 4px 10px; "
+            f"background: {t['chip_bg']}; color: {t['accent']}; border: 1px solid {t['chip_border']}; border-radius: 6px;"
+        )
 
         self.status_lbl.setStyleSheet(f"font-size: 12px; color: {t['text_muted']};")
         self.file_info_lbl.setStyleSheet(f"font-size: 12px; color: {t['text_sec']}; font-weight: 600;")
@@ -925,6 +1171,31 @@ class MainWindow(QMainWindow):
         self.scale_slider.setValue(max(50, min(180, f_scale)))
         self.scale_val_lbl.setText(f"{self.scale_slider.value()}%")
 
+        saved_yaw = int(self.settings.value("yaw", 45))
+        saved_pitch = int(self.settings.value("pitch", 30))
+        self.yaw_slider.setValue(max(0, min(360, saved_yaw)))
+        self.yaw_val_lbl.setText(f"{self.yaw_slider.value()}°")
+        self.pitch_slider.setValue(max(-85, min(85, saved_pitch)))
+        self.pitch_val_lbl.setText(f"{self.pitch_slider.value()}°")
+
+        # Logo & Freeform coordinates
+        saved_logo = str(self.settings.value("logo_path", ""))
+        if saved_logo and Path(saved_logo).is_file():
+            self.set_logo(saved_logo)
+        saved_logo_scale = int(self.settings.value("logo_scale", 100))
+        saved_logo_op = int(self.settings.value("logo_opacity", 90))
+        saved_logo_x = int(self.settings.value("logo_pos_x", 88))
+        saved_logo_y = int(self.settings.value("logo_pos_y", 5))
+        saved_text_x = int(self.settings.value("text_pos_x", 5))
+        saved_text_y = int(self.settings.value("text_pos_y", 5))
+
+        self.logo_scale_slider.setValue(max(20, min(250, saved_logo_scale)))
+        self.logo_opacity_slider.setValue(max(10, min(100, saved_logo_op)))
+        self.logo_x_slider.setValue(max(0, min(100, saved_logo_x)))
+        self.logo_y_slider.setValue(max(0, min(100, saved_logo_y)))
+        self.text_x_slider.setValue(max(0, min(100, saved_text_x)))
+        self.text_y_slider.setValue(max(0, min(100, saved_text_y)))
+
         self.same_folder_chk.setChecked(same_folder)
         if same_folder and last_input:
             self.output_edit.setText(last_input)
@@ -938,7 +1209,6 @@ class MainWindow(QMainWindow):
         self.settings.setValue("input", self.input_edit.text().strip())
         self.settings.setValue("output", self.output_edit.text().strip())
         self.settings.setValue("text", self.text_edit.text())
-        self.settings.setValue("position", self.position_combo.currentData())
         self.settings.setValue("opacity", self.opacity_slider.value())
         self.settings.setValue("same_folder", self.same_folder_chk.isChecked())
         self.settings.setValue("invert_triangles", self.triangle_combo.currentData())
@@ -949,11 +1219,20 @@ class MainWindow(QMainWindow):
         self.settings.setValue("outline_thickness", self.thick_slider.value())
         self.settings.setValue("font_scale", self.scale_slider.value())
         self.settings.setValue("theme", self._current_theme)
+        self.settings.setValue("yaw", self.yaw_slider.value())
+        self.settings.setValue("pitch", self.pitch_slider.value())
+        self.settings.setValue("logo_path", self.logo_path)
+        self.settings.setValue("logo_scale", self.logo_scale_slider.value())
+        self.settings.setValue("logo_opacity", self.logo_opacity_slider.value())
+        self.settings.setValue("logo_pos_x", self.logo_x_slider.value())
+        self.settings.setValue("logo_pos_y", self.logo_y_slider.value())
+        self.settings.setValue("text_pos_x", self.text_x_slider.value())
+        self.settings.setValue("text_pos_y", self.text_y_slider.value())
 
     def get_current_config(self) -> PreviewConfig:
         return PreviewConfig(
             text=self.text_edit.text(),
-            position=str(self.position_combo.currentData() or "top-left"),
+            position="custom" if self.position_combo.currentData() == "custom" else str(self.position_combo.currentText()),
             opacity=self.opacity_slider.value() / 100.0,
             invert_triangles=bool(self.triangle_combo.currentData()),
             solid_color=self.solid_color_btn.rgb_tuple(),
@@ -962,11 +1241,104 @@ class MainWindow(QMainWindow):
             outline_color=self.outline_color_btn.rgb_tuple(),
             outline_thickness=self.thick_slider.value(),
             font_scale=self.scale_slider.value() / 100.0,
+            yaw=float(self.yaw_slider.value()),
+            pitch=float(self.pitch_slider.value()),
+            text_pos_x=self.text_x_slider.value() / 100.0,
+            text_pos_y=self.text_y_slider.value() / 100.0,
+            logo_path=self.logo_path,
+            logo_scale=self.logo_scale_slider.value() / 100.0,
+            logo_opacity=self.logo_opacity_slider.value() / 100.0,
+            logo_pos_x=self.logo_x_slider.value() / 100.0,
+            logo_pos_y=self.logo_y_slider.value() / 100.0,
         )
-
     # ──────────────────────────────────────────────────────────────────
     # User Actions & Handlers
-    # ──────────────────────────────────────────────────────────────────
+    def choose_logo(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose Brand Logo or Icon",
+            str(Path.home()),
+            "Logo Images (*.png *.webp *.svg *.ico *.jpg *.jpeg)",
+        )
+        if file_path:
+            self.set_logo(file_path)
+            self._save_settings()
+            self.schedule_preview()
+
+    def set_logo(self, path: str) -> None:
+        self.logo_path = path
+        p = Path(path)
+        if p.is_file():
+            self.logo_info_lbl.setText(f"✓ Logo: {p.name}")
+            self.logo_info_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #10B981;")
+            self.clear_logo_btn.setEnabled(True)
+            self.logo_options_widget.setVisible(True)
+        else:
+            self.clear_logo()
+
+    def clear_logo(self) -> None:
+        self.logo_path = ""
+        self.logo_info_lbl.setText("No logo uploaded")
+        self.logo_info_lbl.setStyleSheet("font-size: 11px; color: #6B7280;")
+        self.clear_logo_btn.setEnabled(False)
+        self.logo_options_widget.setVisible(False)
+        self._save_settings()
+        self.schedule_preview()
+
+    def on_logo_scale_changed(self, val: int) -> None:
+        self.logo_scale_lbl.setText(f"{val}%")
+        self.schedule_preview()
+
+    def on_logo_opacity_changed(self, val: int) -> None:
+        self.logo_op_lbl.setText(f"{val}%")
+        self.schedule_preview()
+
+    def on_logo_pos_combo_changed(self) -> None:
+        data = self.logo_pos_combo.currentData()
+        if isinstance(data, tuple) and len(data) == 2:
+            self.logo_x_slider.blockSignals(True)
+            self.logo_y_slider.blockSignals(True)
+            self.logo_x_slider.setValue(int(data[0] * 100))
+            self.logo_y_slider.setValue(int(data[1] * 100))
+            self.logo_x_lbl.setText(f"{self.logo_x_slider.value()}%")
+            self.logo_y_lbl.setText(f"{self.logo_y_slider.value()}%")
+            self.logo_x_slider.blockSignals(False)
+            self.logo_y_slider.blockSignals(False)
+            self.schedule_preview()
+
+    def on_logo_coords_changed(self) -> None:
+        self.logo_x_lbl.setText(f"{self.logo_x_slider.value()}%")
+        self.logo_y_lbl.setText(f"{self.logo_y_slider.value()}%")
+        idx = self.logo_pos_combo.findData("custom")
+        if idx >= 0:
+            self.logo_pos_combo.blockSignals(True)
+            self.logo_pos_combo.setCurrentIndex(idx)
+            self.logo_pos_combo.blockSignals(False)
+        self.schedule_preview()
+
+    def on_text_pos_combo_changed(self) -> None:
+        data = self.position_combo.currentData()
+        if isinstance(data, tuple) and len(data) == 2:
+            self.text_x_slider.blockSignals(True)
+            self.text_y_slider.blockSignals(True)
+            self.text_x_slider.setValue(int(data[0] * 100))
+            self.text_y_slider.setValue(int(data[1] * 100))
+            self.text_x_lbl.setText(f"{self.text_x_slider.value()}%")
+            self.text_y_lbl.setText(f"{self.text_y_slider.value()}%")
+            self.text_x_slider.blockSignals(False)
+            self.text_y_slider.blockSignals(False)
+            self.schedule_preview()
+
+    def on_text_coords_changed(self) -> None:
+        self.text_x_lbl.setText(f"{self.text_x_slider.value()}%")
+        self.text_y_lbl.setText(f"{self.text_y_slider.value()}%")
+        idx = self.position_combo.findData("custom")
+        if idx >= 0:
+            self.position_combo.blockSignals(True)
+            self.position_combo.setCurrentIndex(idx)
+            self.position_combo.blockSignals(False)
+        self.schedule_preview()
+
     def on_same_folder_toggled(self, checked: bool) -> None:
         if checked:
             in_dir = self.input_edit.text().strip()
@@ -1050,28 +1422,126 @@ class MainWindow(QMainWindow):
         if not folder.is_dir():
             self.preview_label.setText("Input folder does not exist")
             self.file_info_lbl.setText("No file loaded")
+            self.file_counter_lbl.setText("0 / 0")
             self.res_info_lbl.setText("")
+            self.prev_btn.setEnabled(False)
+            self.next_btn.setEnabled(False)
             return
 
-        assets = sorted(
+        import zipfile
+        import tempfile
+        import shutil
+
+        if self._session_zip_dir and self._session_zip_dir.exists():
+            shutil.rmtree(self._session_zip_dir, ignore_errors=True)
+            self._session_zip_dir = None
+
+        direct_files = [
             p for p in folder.iterdir()
-            if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
-        )
-        if not assets:
+            if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS and p.suffix.lower() != ".zip"
+        ]
+        zip_files = [
+            p for p in folder.iterdir()
+            if p.is_file() and p.suffix.lower() == ".zip"
+        ]
+
+        if zip_files:
+            self._session_zip_dir = Path(tempfile.mkdtemp(prefix="previewgen_session_"))
+            for z in zip_files:
+                try:
+                    with zipfile.ZipFile(z, "r") as zf:
+                        for member in zf.infolist():
+                            t = (self._session_zip_dir / f"{z.stem}_{member.filename}").resolve()
+                            if not str(t).startswith(str(self._session_zip_dir.resolve())):
+                                continue
+                            if member.is_dir() or member.filename.startswith("__MACOSX") or Path(member.filename).name.startswith("."):
+                                continue
+                            t.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(member) as src, open(t, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                except Exception:
+                    pass
+
+            extracted_assets = [
+                p for p in self._session_zip_dir.rglob("*.*")
+                if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS and p.suffix.lower() != ".zip"
+            ]
+            self.file_list = sorted(direct_files + extracted_assets)
+        else:
+            self.file_list = sorted(direct_files)
+        if not self.file_list:
             self.preview_source = None
+            self.current_file_idx = 0
             ext_str = ", ".join(ext.upper().lstrip(".") for ext in SUPPORTED_EXTENSIONS)
             self.preview_label.setText(f"No supported images found in:\n{folder.name}\n\nSupported: {ext_str}")
             self.file_info_lbl.setText("No supported images found")
+            self.file_counter_lbl.setText("0 / 0")
             self.res_info_lbl.setText("")
+            self.prev_btn.setEnabled(False)
+            self.next_btn.setEnabled(False)
+            self.panel_3d.setVisible(False)
+            self.preview_label.set_3d_mode(False)
             return
 
-        self.preview_source = assets[0]
+        self.current_file_idx = 0
+        self._update_active_file()
+
+    def go_prev_file(self) -> None:
+        if self.file_list and self.current_file_idx > 0:
+            self.current_file_idx -= 1
+            self._update_active_file()
+
+    def go_next_file(self) -> None:
+        if self.file_list and self.current_file_idx < len(self.file_list) - 1:
+            self.current_file_idx += 1
+            self._update_active_file()
+
+    def _update_active_file(self) -> None:
+        if not self.file_list:
+            return
+        self.preview_source = self.file_list[self.current_file_idx]
+        total = len(self.file_list)
+        self.file_counter_lbl.setText(f"{self.current_file_idx + 1} / {total}")
+        self.prev_btn.setEnabled(self.current_file_idx > 0)
+        self.next_btn.setEnabled(self.current_file_idx < total - 1)
+
+        is_3d = self.preview_source.suffix.lower() in SUPPORTED_3D_EXTENSIONS
+        self.panel_3d.setVisible(is_3d)
+        self.preview_label.set_3d_mode(is_3d)
+
         self._do_refresh_preview()
+
+    def on_yaw_changed(self, value: int) -> None:
+        self.yaw_val_lbl.setText(f"{value}°")
+        self.schedule_preview()
+
+    def on_pitch_changed(self, value: int) -> None:
+        self.pitch_val_lbl.setText(f"{value}°")
+        self.schedule_preview()
+
+    def set_3d_angle(self, yaw: float, pitch: float) -> None:
+        self.yaw_slider.setValue(int(yaw))
+        self.pitch_slider.setValue(int(pitch))
+        self.schedule_preview()
+
+    def on_orbit_drag(self, dyaw: float, dpitch: float) -> None:
+        new_yaw = (self.yaw_slider.value() + int(round(dyaw))) % 360
+        new_pitch = max(-85, min(85, self.pitch_slider.value() + int(round(dpitch))))
+        self.yaw_slider.setValue(new_yaw)
+        self.pitch_slider.setValue(new_pitch)
+        self.schedule_preview()
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Left:
+            self.go_prev_file()
+        elif event.key() == Qt.Key.Key_Right:
+            self.go_next_file()
+        else:
+            super().keyPressEvent(event)
 
     def _do_refresh_preview(self) -> None:
         if not self.preview_source or not self.preview_source.is_file():
             return
-
         try:
             config = self.get_current_config()
             jpeg_bytes = preview_jpeg_bytes(self.preview_source, config)
@@ -1243,6 +1713,9 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         if self.worker:
             self.worker.cancel()
+        if self._session_zip_dir and self._session_zip_dir.exists():
+            import shutil
+            shutil.rmtree(self._session_zip_dir, ignore_errors=True)
         self._save_settings()
         super().closeEvent(event)
 
