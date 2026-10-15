@@ -12,6 +12,10 @@ ENV/
 dist/
 build/
 *.egg
+# Node
+node_modules/
+*/node_modules/
+.npm/
 
 # IDE/Editor
 .vscode/
