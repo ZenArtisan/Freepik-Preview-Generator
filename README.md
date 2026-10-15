@@ -151,11 +151,10 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
 
 ### 2. Full 360° 3D Model Studio (GLB, GLTF, OBJ, STL, PLY, BLEND)
 - **360° Interactive Orbit**: Click and drag your mouse directly on the preview image to rotate 3D models from any angle in real-time.
+- **Zero-Distortion Mesh Rendering**: Complex geometries (such as car models, thin vehicle panels, wheels, and interior parts) preserve their exact vertices, normals, and submesh transforms without destructive mesh decimation.
+- **Zero-Dependency .blend Previews**: Extracts embedded preview renders directly from `.blend` file headers in pure Python—no need to install Blender!
 - **Studio Angle Presets**: 1-click presets for **Isometric 3/4**, **Front**, **Side**, **Top**, and **Back** views.
-- **Fine-Grained Controls**: Sliders for horizontal **Yaw (0°–360°)** and vertical **Pitch (-85° to +85°)**.
-- **Headless Studio Lighting**: Directional key light + ambient fill with smooth shading and back-face culling onto a transparent canvas.
-- **Blender Integration**: Native headless rendering of `.blend` scene files via local Blender CLI.
-
+- **Fine-Grained Controls**: Sliders for horizontal **Yaw (0°–360°)** and vertical **Pitch (-85° to +85°)** with two-sided directional lighting.
 ### 3. File-by-File Viewport Navigation
 - **Previous & Next Buttons**: Easily cycle through any asset in your chosen folder using `◀ Prev` and `Next ▶` buttons.
 - **Live File Counter**: Visual badge showing current position (e.g. `File 3 / 24`).
@@ -177,11 +176,11 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
 - **Directional Flip**: Choose between *Left Solid / Right Transparent* or *Left Transparent / Right Solid*.
 - **Interactive Color Palette**: Pick any custom hex color or select from one-click presets (White, Off-White, Light Gray, Dark).
 
-### 7. Typography & Outline Engine
+### 7. Typography, Custom Fonts & Outline Engine
+- **Custom Font Upload**: Click **Browse Font File…** to load any `.ttf`, `.otf`, or `.woff` font file from your PC and render watermarks in your exact brand typography.
 - **Customizable Label**: Defaults to `100% TRANSPARENT`, or enter your own custom text (or leave blank).
 - **Outer Outline / Stroke**: Toggleable stroke with custom color and thickness (Thin, Normal, Medium, Thick, Extra Bold) so text remains readable over any image.
 - **Live Sliders**: Real-time Font Scale (50% to 180%) and Text Opacity (10% to 100%).
-
 ### 8. Premium Design System (Ice Blue & Slate Palette)
 - **Light Mode**: Crisp icy-white background (`#F7FBFD`), soft mist blue borders and chips (`#D6E6EF`), and slate steel blue accents (`#7FA6B8`).
 - **Dark Mode**: Deep nocturnal slate background (`#0E171E`), elevated dark surfaces (`#15222B`), luminous icy typography (`#F7FBFD`), and complementary slate blue highlights.

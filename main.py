@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QApplication, QColorDialog, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton,
     QSizePolicy, QVBoxLayout, QWidget, QFrame, QScrollArea,
-    QComboBox, QSlider, QCheckBox, QToolButton
+    QComboBox, QSlider, QCheckBox, QToolButton, QSystemTrayIcon, QMenu
 )
 
 from processor import (
@@ -514,6 +514,10 @@ class MainWindow(QMainWindow):
         self.file_list: list[Path] = []
         self.current_file_idx: int = 0
         self.logo_path: str = ""
+        self.custom_font_path: str = ""
+        self.app_icon: QIcon | None = None
+        self.app_icon_path: str = ""
+        self.tray_icon: QSystemTrayIcon | None = None
         self._session_zip_dir: Path | None = None
         self._raw_pixmap: QPixmap | None = None
         self._fit_to_view = True
@@ -525,8 +529,9 @@ class MainWindow(QMainWindow):
         self._preview_timer.timeout.connect(self._do_refresh_preview)
 
         self._build_ui()
+        self._load_app_icon()
+        self._setup_system_tray()
         self._load_saved_settings()
-
     # ──────────────────────────────────────────────────────────────────
     # UI Construction
     # ──────────────────────────────────────────────────────────────────
@@ -830,7 +835,24 @@ class MainWindow(QMainWindow):
             t_color_row.addWidget(btn)
         t_color_row.addStretch()
         lay.addLayout(t_color_row)
+        # Custom Font Selection
+        lay.addWidget(self._field_label("Typography & Custom Font (.ttf, .otf, .woff)"))
+        font_btn_row = QHBoxLayout()
+        font_btn_row.setSpacing(6)
+        self.choose_font_btn = QPushButton("Browse Font File…")
+        self.choose_font_btn.setProperty("class", "SecondaryButton")
+        self.choose_font_btn.clicked.connect(self.choose_font)
+        self.reset_font_btn = QPushButton("Reset")
+        self.reset_font_btn.setProperty("class", "DangerButton")
+        self.reset_font_btn.setEnabled(False)
+        self.reset_font_btn.clicked.connect(self.reset_font)
+        font_btn_row.addWidget(self.choose_font_btn, 1)
+        font_btn_row.addWidget(self.reset_font_btn)
+        lay.addLayout(font_btn_row)
 
+        self.font_info_lbl = QLabel("Font: System Default Bold")
+        self.font_info_lbl.setStyleSheet("font-size: 11px; color: #4D6775;")
+        lay.addWidget(self.font_info_lbl)
         # Font scale
         scale_hdr = QHBoxLayout()
         scale_hdr.addWidget(self._field_label("Font Size Scale"))
@@ -1193,6 +1215,10 @@ class MainWindow(QMainWindow):
         self.text_x_slider.setValue(max(0, min(100, saved_text_x)))
         self.text_y_slider.setValue(max(0, min(100, saved_text_y)))
 
+        saved_font = str(self.settings.value("custom_font_path", ""))
+        if saved_font and Path(saved_font).is_file():
+            self.set_custom_font(saved_font)
+
         self.same_folder_chk.setChecked(same_folder)
         if same_folder and last_input:
             self.output_edit.setText(last_input)
@@ -1225,6 +1251,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("logo_pos_y", self.logo_y_slider.value())
         self.settings.setValue("text_pos_x", self.text_x_slider.value())
         self.settings.setValue("text_pos_y", self.text_y_slider.value())
+        self.settings.setValue("custom_font_path", self.custom_font_path)
 
     def get_current_config(self) -> PreviewConfig:
         return PreviewConfig(
@@ -1247,6 +1274,7 @@ class MainWindow(QMainWindow):
             logo_opacity=self.logo_opacity_slider.value() / 100.0,
             logo_pos_x=self.logo_x_slider.value() / 100.0,
             logo_pos_y=self.logo_y_slider.value() / 100.0,
+            font_path=self.custom_font_path,
         )
     # ──────────────────────────────────────────────────────────────────
     # User Actions & Handlers
@@ -1336,6 +1364,101 @@ class MainWindow(QMainWindow):
             self.position_combo.blockSignals(False)
         self.schedule_preview()
 
+    def choose_font(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose Custom Font File",
+            str(Path.home()),
+            "Font Files (*.ttf *.otf *.woff *.woff2)",
+        )
+        if file_path:
+            self.set_custom_font(file_path)
+            self._save_settings()
+            self.schedule_preview()
+
+    def set_custom_font(self, path: str) -> None:
+        self.custom_font_path = path
+        p = Path(path)
+        if p.is_file():
+            self.font_info_lbl.setText(f"✓ Custom Font: {p.name}")
+            self.font_info_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #0D7A53;")
+            self.reset_font_btn.setEnabled(True)
+        else:
+            self.reset_font()
+
+    def reset_font(self) -> None:
+        self.custom_font_path = ""
+        self.font_info_lbl.setText("Font: System Default Bold")
+        self.font_info_lbl.setStyleSheet("font-size: 11px; color: #4D6775;")
+        self.reset_font_btn.setEnabled(False)
+        self._save_settings()
+        self.schedule_preview()
+
+    def _load_app_icon(self) -> None:
+        candidates = [
+            Path(__file__).resolve().parent / "app.ico",
+            Path(sys.executable).resolve().parent / "app.ico",
+            Path(getattr(sys, "_MEIPASS", "")) / "app.ico",
+        ]
+        for c in candidates:
+            if c.exists():
+                self.app_icon = QIcon(str(c))
+                self.setWindowIcon(self.app_icon)
+                app = QApplication.instance()
+                if app:
+                    app.setWindowIcon(self.app_icon)
+                self.app_icon_path = str(c)
+                break
+
+    def _setup_system_tray(self) -> None:
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        self.tray_icon = QSystemTrayIcon(self)
+        if self.app_icon:
+            self.tray_icon.setIcon(self.app_icon)
+        self.tray_icon.setToolTip("PreviewGen - Batch Preview Studio")
+
+        menu = QMenu()
+        show_action = menu.addAction("Show PreviewGen")
+        show_action.triggered.connect(self._restore_from_tray)
+        theme_action = menu.addAction("Toggle Dark/Light Mode")
+        theme_action.triggered.connect(self.toggle_theme)
+        menu.addSeparator()
+        quit_action = menu.addAction("Exit")
+        quit_action.triggered.connect(QApplication.instance().quit)
+
+        self.tray_icon.setContextMenu(menu)
+        self.tray_icon.activated.connect(self._on_tray_activated)
+        self.tray_icon.show()
+
+    def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
+            self._restore_from_tray()
+
+    def _restore_from_tray(self) -> None:
+        self.showNormal()
+        self.activateWindow()
+        self.raise_()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if sys.platform == "win32" and getattr(self, "app_icon_path", None):
+            try:
+                import ctypes
+                hwnd = int(self.winId())
+                IMAGE_ICON = 1
+                LR_LOADFROMFILE = 0x0010
+                hIcon = ctypes.windll.user32.LoadImageW(
+                    0, str(self.app_icon_path), IMAGE_ICON, 0, 0, LR_LOADFROMFILE
+                )
+                if hIcon:
+                    WM_SETICON = 0x0080
+                    ICON_SMALL = 0
+                    ICON_BIG = 1
+                    ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, hIcon)
+                    ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, hIcon)
+            except Exception:
+                pass
     def on_same_folder_toggled(self, checked: bool) -> None:
         if checked:
             in_dir = self.input_edit.text().strip()

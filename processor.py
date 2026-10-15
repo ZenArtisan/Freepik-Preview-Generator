@@ -59,11 +59,23 @@ class PreviewConfig:
     logo_opacity: float = 0.9             # Logo opacity (0.0 to 1.0)
     logo_pos_x: float = 0.88              # Logo horizontal position (0.0 to 1.0)
     logo_pos_y: float = 0.05              # Logo vertical position (0.0 to 1.0)
-def _font(size: int) -> ImageFont.ImageFont:
+    # Custom Font Support
+    font_path: str = ""                   # Path to custom .ttf/.otf font file
+
+
+def _font(size: int, font_path: str = "") -> ImageFont.ImageFont:
+    if font_path and Path(font_path).is_file():
+        try:
+            return ImageFont.truetype(str(font_path), size=size)
+        except Exception:
+            pass
+
     for path in (
         Path("C:/Windows/Fonts/arialbd.ttf"),
         Path("C:/Windows/Fonts/segoeuib.ttf"),
         Path("C:/Windows/Fonts/calibrib.ttf"),
+        Path("/System/Library/Fonts/SFProDisplay-Bold.otf"),
+        Path("/System/Library/Fonts/HelveticaNeue.ttc"),
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
     ):
         if path.exists():
@@ -244,7 +256,7 @@ def compose_preview(
     if label:
         base_font_size = round(min(width, height) * 0.038 * config.font_scale)
         font_size = max(14, min(240, base_font_size))
-        font = _font(font_size)
+        font = _font(font_size, config.font_path)
 
         draw_calc = ImageDraw.Draw(result)
         box = draw_calc.textbbox((0, 0), label, font=font, stroke_width=0)
@@ -387,22 +399,11 @@ def render_3d_mesh(
     from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt, QPointF
     from PySide6.QtGui import QImage, QPainter, QColor, QPolygonF, QBrush
 
-    # Center and scale to unit radius
+    # Center and scale to unit radius preserving exact submesh geometry
     verts = mesh.vertices - mesh.centroid
     max_radius = float(np.max(np.linalg.norm(verts, axis=1)))
     if max_radius > 0:
         verts = verts / max_radius
-
-    # Decimate dense meshes to guarantee interactive 60fps orbit response
-    if len(mesh.faces) > 16000:
-        try:
-            mesh = mesh.simplify_quadric_decimation(16000)
-            verts = mesh.vertices - mesh.centroid
-            max_r = float(np.max(np.linalg.norm(verts, axis=1)))
-            if max_r > 0:
-                verts = verts / max_r
-        except Exception:
-            pass
 
     yaw = np.radians(yaw_deg)
     pitch = np.radians(pitch_deg)
@@ -426,20 +427,20 @@ def render_3d_mesh(
     face_z = v_rot[mesh.faces].mean(axis=1)[:, 2]
     order = np.argsort(face_z)
 
-    # Back-face culling
-    visible_mask = n_rot[:, 2] > -0.15
+    # Gentle back-face culling to preserve thin vehicle panels and interior geometry
+    visible_mask = n_rot[:, 2] > -0.55
     visible_order = [idx for idx in order if visible_mask[idx]]
 
     W, H = target_dimension, target_dimension
     scale = min(W, H) * 0.42
     pts_2d = v_rot[:, :2] * scale + np.array([W / 2, H / 2])
 
-    # Directional Key Light + Ambient Light
+    # Directional Key Light + Ambient Light (two-sided diffuse so car interior/doors remain illuminated)
     light_dir = np.array([0.45, 0.65, 0.61])
     light_dir /= np.linalg.norm(light_dir)
-    diffuse = np.maximum(0, n_rot @ light_dir)
-    ambient = 0.32
-    intensity = np.clip(ambient + 0.68 * diffuse, 0.0, 1.0)
+    diffuse = np.abs(n_rot @ light_dir) * 0.72
+    ambient = 0.35
+    intensity = np.clip(ambient + diffuse, 0.0, 1.0)
 
     has_face_colors = (
         hasattr(mesh.visual, "face_colors")
@@ -486,11 +487,76 @@ def render_3d_mesh(
         return pil_img.convert("RGBA")
 
 
+def extract_blend_thumbnail(path: Path) -> Image.Image | None:
+    """Extract embedded preview thumbnail from a .blend file in pure Python without Blender."""
+    import struct
+    import gzip
+
+    try:
+        with open(path, "rb") as f:
+            head = f.read(12)
+            if head[:2] == b"\x1f\x8b":
+                f.seek(0)
+                gf = gzip.GzipFile(fileobj=f)
+                head = gf.read(12)
+                stream = gf
+            else:
+                stream = f
+
+            if not head.startswith(b"BLENDER"):
+                return None
+
+            is_64_bit = (head[7:8] == b"-")
+            is_big_endian = (head[8:9] == b"V")
+            sizeof_bhead = 24 if is_64_bit else 20
+            int_endian = ">i" if is_big_endian else "<i"
+
+            REND = b"REND"
+            TEST = b"TEST"
+
+            while True:
+                bhead = stream.read(sizeof_bhead)
+                if len(bhead) < sizeof_bhead:
+                    return None
+                code = bhead[:4]
+                length = struct.unpack(int_endian, bhead[4:8])[0]
+                if code == REND:
+                    stream.seek(length, 1)
+                else:
+                    break
+
+            if code != TEST:
+                return None
+
+            dims = stream.read(8)
+            if len(dims) < 8:
+                return None
+            w, h = struct.unpack(int_endian + "i", dims)
+            length -= 8
+            if length != w * h * 4 or w <= 0 or h <= 0:
+                return None
+
+            raw_rgba = stream.read(length)
+            if len(raw_rgba) != length:
+                return None
+
+            img = Image.frombytes("RGBA", (w, h), raw_rgba)
+            return img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+    except Exception:
+        return None
+
+
 def _load_3d(source_path: Path, config: PreviewConfig) -> Image.Image:
     """Load and render 3D formats (.obj, .gltf, .glb, .stl, .ply, .blend) into an RGBA PIL image."""
     ext = source_path.suffix.lower()
 
     if ext == ".blend":
+        # 1. Zero-dependency extraction: read embedded scene thumbnail saved in the .blend file
+        thumb = extract_blend_thumbnail(source_path)
+        if thumb is not None:
+            return thumb
+
+        # 2. Fallback to local Blender binary if installed
         import shutil
         import subprocess
         import tempfile
@@ -499,9 +565,11 @@ def _load_3d(source_path: Path, config: PreviewConfig) -> Image.Image:
         blender_bin = shutil.which("blender")
         if not blender_bin and sys.platform == "win32":
             for p in (
+                "C:/Program Files/Blender Foundation/Blender 4.3/blender.exe",
                 "C:/Program Files/Blender Foundation/Blender 4.2/blender.exe",
                 "C:/Program Files/Blender Foundation/Blender 4.1/blender.exe",
                 "C:/Program Files/Blender Foundation/Blender 4.0/blender.exe",
+                "C:/Program Files/Blender Foundation/Blender 3.6/blender.exe",
             ):
                 if Path(p).exists():
                     blender_bin = p
@@ -511,15 +579,10 @@ def _load_3d(source_path: Path, config: PreviewConfig) -> Image.Image:
             if mac_b.exists():
                 blender_bin = str(mac_b)
 
-        if not blender_bin:
-            raise RuntimeError(
-                "Blender is required to render .blend files. Please install Blender, "
-                "or export your model to .glb, .gltf, or .obj"
-            )
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            out_png = Path(tmp_dir) / "render.png"
-            script = f"""
+        if blender_bin:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                out_png = Path(tmp_dir) / "render.png"
+                script = f"""
 import bpy
 bpy.context.scene.render.film_transparent = True
 bpy.context.scene.render.image_settings.file_format = 'PNG'
@@ -527,12 +590,16 @@ bpy.context.scene.render.image_settings.color_mode = 'RGBA'
 bpy.context.scene.render.filepath = r'{out_png}'
 bpy.ops.render.render(write_still=True)
 """
-            subprocess.run([blender_bin, "-b", str(source_path), "--python-expr", script], capture_output=True, timeout=60)
-            if out_png.exists():
-                with Image.open(out_png) as img:
-                    img.load()
-                    return img.convert("RGBA")
-            raise RuntimeError("Blender headless rendering failed to produce output image.")
+                subprocess.run([blender_bin, "-b", str(source_path), "--python-expr", script], capture_output=True, timeout=60)
+                if out_png.exists():
+                    with Image.open(out_png) as img:
+                        img.load()
+                        return img.convert("RGBA")
+
+        raise RuntimeError(
+            "This .blend file has no embedded preview thumbnail. "
+            "To preview it, either install Blender or export the model to .glb, .gltf, or .obj (which render natively with full 360° controls)!"
+        )
 
     try:
         import trimesh
@@ -543,10 +610,12 @@ bpy.ops.render.render(write_still=True)
     if isinstance(loaded, trimesh.Scene):
         if len(loaded.geometry) == 0:
             raise ValueError("3D Scene contains no valid geometry")
-        mesh = trimesh.util.concatenate(loaded.dump())
+        try:
+            mesh = loaded.to_geometry()
+        except Exception:
+            mesh = trimesh.util.concatenate(loaded.dump())
     else:
         mesh = loaded
-
     return render_3d_mesh(
         mesh=mesh,
         yaw_deg=config.yaw,
