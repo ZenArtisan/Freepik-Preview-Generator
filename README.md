@@ -1,179 +1,169 @@
 # PreviewGen
 
-A cross-platform desktop app that turns transparent PNG files into professional JPG previews for marketplaces like Freepik, Adobe Stock, Shutterstock, and more.
+A fast, modern desktop app that turns transparent PNG files into professional, marketplace-ready JPG previews for Freepik, Adobe Stock, Shutterstock, Creative Market, and more.
 
 <p align="center">
-  <img src="preview.png" alt="PreviewGen Screenshot" width="800">
+  <img src="preview-light.png" alt="PreviewGen Light Mode" width="850">
 </p>
 
-## What It Does
-
-PreviewGen automates the creation of marketplace-ready JPG previews from your transparent PNG assets. Each preview features:
-
-- **Diagonal split background** — checkerboard (transparency indicator) on one side, solid color on the other
-- **Auto-centered object** — your PNG scales to fit while preserving aspect ratio
-- **"TRANSPARENT BACKGROUND" badge** — instantly communicates the asset type
-- **Customizable everything** — colors, text, fonts, badge, output quality
-- **Batch processing** — hundreds of images in one click
-
-## Features
-
-| Feature | Description |
-|---------|-------------|
-| 🎨 **Dark & Light modes** | System-aware theme with manual toggle |
-| 🖌️ **Full customization** | Text, outline, colors, badge, background, fonts |
-| 📦 **Batch processing** | Process entire folders with progress tracking |
-| ⚡ **Live preview** | See changes instantly before generating |
-| 💾 **Persistent settings** | Remembers your last configuration |
-| 🖼️ **Multiple aspect ratios** | Square, 4:3, 3:4, 16:9, custom |
-| 🎯 **Freepik-ready** | Output meets marketplace requirements |
-
-## Installation
-
-### Windows (Recommended)
-1. Download the latest `PreviewGen.exe` from [Releases](https://github.com/Mustaqeem66/Freepik-Prewview-Generator/releases)
-2. Double-click to run — no installation needed
-3. (Optional) Create a desktop shortcut
-
-### macOS
-```bash
-# Download and install via terminal
-curl -L https://github.com/Mustaqeem66/Freepik-Prewview-Generator/releases/latest/download/PreviewGen.dmg -o PreviewGen.dmg
-hdiutil attach PreviewGen.dmg
-cp -R "/Volumes/PreviewGen/PreviewGen.app" /Applications/
-hdiutil detach "/Volumes/PreviewGen"
-```
-
-### Linux (AppImage)
-```bash
-# Download and run
-curl -L https://github.com/Mustaqeem66/Freepik-Prewview-Generator/releases/latest/download/PreviewGen.AppImage -o PreviewGen.AppImage
-chmod +x PreviewGen.AppImage
-./PreviewGen.AppImage
-```
-
-### From Source (All Platforms)
-```bash
-# Requirements: Python 3.10+
-git clone https://github.com/Mustaqeem66/Freepik-Prewview-Generator.git
-cd Freepik-Prewview-Generator
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
-```
-
-## Quick Start
-
-1. **Launch** PreviewGen
-2. **Select Input Folder** — folder containing your transparent PNGs
-3. **Select Output Folder** — where JPGs will be saved
-4. **Customize** (optional) — adjust colors, text, badge, background
-5. **Click "Generate JPG Previews"** — watch the progress bar
-6. **Done** — JPGs appear in your output folder, ready to upload
-
-## Customization Options
-
-### Text Settings
-- **Custom text** — replace default "TRANSPARENT BACKGROUND" badge
-- **Font family & size** — system fonts + Google Fonts
-- **Text color** — any hex/RGB value
-- **Outline** — enable/disable, color, thickness
-
-### Background Settings
-- **Solid color** — pick any color for the solid triangle
-- **Checkerboard colors** — customize both light/dark squares
-- **Diagonal angle** — adjust split direction
-
-### Output Settings
-- **JPEG quality** (10–100)
-- **Output dimensions** — presets or custom
-- **Aspect ratio** — Square, 4:3, 3:4, 16:9, 1:1
-
-## Screenshots
-
-### Light Mode
 <p align="center">
-  <img src="preview.png" alt="PreviewGen Light Mode" width="800">
+  <img src="preview-dark.png" alt="PreviewGen Dark Mode" width="850">
 </p>
-
-### Dark Mode
-<p align="center">
-  <img src="preview-dark.png" alt="PreviewGen Dark Mode" width="800">
-</p>
-
-## Project Structure
-
-```
-PreviewGen/
-├── main.py              # Main application entry point
-├── processor.py         # Image processing logic
-├── requirements.txt     # Python dependencies
-├── build_windows.bat    # Windows build script
-├── run_app.bat          # Windows run script
-├── setup_windows.bat    # Windows setup script
-├── app.ico              # Application icon
-├── preview.png          # Light mode preview
-├── preview-dark.png     # Dark mode preview
-├── .github/
-│   └── workflows/
-│       └── build.yml    # CI/CD pipeline
-└── README.md
-```
-
-## Building from Source
-
-### Windows (creates .exe)
-```bash
-./build_windows.bat
-# Output: dist/PreviewGen/PreviewGen.exe
-```
-
-### macOS (creates .dmg)
-```bash
-# Requires: PyInstaller, create-dmg
-pyinstaller --noconsole --name PreviewGen --icon=app.icns main.py
-# Then use create-dmg to package
-```
-
-### Linux (creates AppImage)
-```bash
-# Requires: PyInstaller, appimagetool
-pyinstaller --noconsole --name PreviewGen main.py
-# Then use appimagetool to package
-```
-
-## CI/CD Pipeline
-
-This project uses GitHub Actions for automated cross-platform builds:
-
-- **Windows** → `.exe` (standalone)
-- **macOS** → `.dmg` (drag-to-install)
-- **Linux** → `.AppImage` (run anywhere)
-
-Triggers on:
-- Push to `main` branch
-- New version tags (`v*`)
-- Manual workflow dispatch
-
-Artifacts are uploaded as release assets automatically.
-
-## Requirements
-
-- **Python** 3.10+
-- **PySide6** (Qt6 bindings)
-- **Pillow** (image processing)
-
-All dependencies in `requirements.txt`.
-
-## License
-
-MIT License — free for personal and commercial use.
-
-## Author
-
-**Mustaqeem66** — [GitHub](https://github.com/Mustaqeem66)
 
 ---
 
-⭐ Star this repo if PreviewGen saves you time!
+## ⚡ 1-Line Universal Installers (No Certificate Warnings)
+
+Because PreviewGen is an independent open-source project without expensive $400/yr corporate signing certificates, standard web browsers and operating systems may display "Unknown Publisher" or SmartScreen/Gatekeeper warnings when downloading raw files.
+
+**The recommended and fastest way to install PreviewGen is running the one-line command below in your terminal.** It downloads the latest release, bypasses certificate quarantine blocks, installs the app permanently, and **creates a Desktop Shortcut with the official icon**.
+
+> **Run this command once.** Afterwards, simply double-click the **PreviewGen** icon on your Desktop or Start Menu like any regular app!
+
+### 🪟 Windows (PowerShell)
+
+Open **PowerShell** (press `Win + X` then choose *Terminal* or *PowerShell*) and paste:
+
+```powershell
+irm https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Generator/main/install.ps1 | iex
+```
+
+**What this automatically does:**
+- Downloads the latest release to `%LOCALAPPDATA%\Programs\PreviewGen`
+- Automatically unblocks downloaded files (`Unblock-File`) to **bypass Windows SmartScreen warnings**
+- Creates a **Desktop Shortcut** with the high-resolution app icon
+- Creates a **Start Menu Shortcut** (searchable via Windows Search)
+- Generates an `uninstall.bat` script
+- Launches PreviewGen immediately
+
+---
+
+### 🍎 macOS (Terminal)
+
+Open **Terminal** (press `Cmd + Space`, type `Terminal`, and press `Enter`) and paste:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Generator/main/install.sh | bash
+```
+
+**What this automatically does:**
+- Downloads the latest macOS build and installs to `/Applications/PreviewGen.app`
+- Strips Apple Gatekeeper quarantine (`xattr -cr`) to **bypass the "Unidentified Developer" warning**
+- Creates a **Desktop Shortcut** (`~/Desktop/PreviewGen`)
+- Launches PreviewGen immediately
+
+---
+
+### 🐧 Linux (Terminal)
+
+Open your terminal and paste:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Mustaqeem66/Freepik-Prewview-Generator/main/install.sh | bash
+```
+
+**What this automatically does:**
+- Installs the standalone AppImage into `~/.local/bin/previewgen`
+- Sets executable permissions (`chmod +x`)
+- Installs the app icon to `~/.local/share/icons/`
+- Creates application menu entries (`previewgen.desktop`) and a **Desktop Shortcut**
+- Launches PreviewGen immediately
+
+---
+
+## 📦 Alternative: Manual Download (GitHub Releases)
+
+If you prefer downloading manually:
+
+1. Go to the [**Releases Page**](https://github.com/Mustaqeem66/Freepik-Prewview-Generator/releases/latest).
+2. Download the package for your OS:
+   - **Windows**: `PreviewGen-Windows.zip`
+     - Extract the zip folder anywhere you like.
+     - Double-click `Install-Desktop-Icon.bat` to create your Desktop & Start Menu shortcuts.
+     - *(If Windows SmartScreen warns "Windows protected your PC", click **More Info** → **Run anyway**).*
+   - **macOS**: `PreviewGen-macOS.dmg`
+     - Open the DMG and drag `PreviewGen.app` to your Applications folder.
+     - *(If macOS warns "Cannot be opened because it is from an unidentified developer", right-click the app in Finder and choose **Open**, or run `xattr -cr /Applications/PreviewGen.app` in Terminal).*
+   - **Linux**: `PreviewGen-Linux.AppImage`
+     - Make it executable: `chmod +x PreviewGen-Linux.AppImage`
+     - Double-click to run.
+
+---
+
+## 💻 Run from Source (Developers)
+
+```bash
+# Clone the repository
+git clone https://github.com/Mustaqeem66/Freepik-Prewview-Generator.git
+cd Freepik-Prewview-Generator
+
+# Create & activate a Python 3.10+ virtual environment
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On macOS / Linux:
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the app
+python main.py
+```
+
+---
+
+## ✨ Features & Capabilities
+
+| Feature | Details |
+|---|---|
+| 🌓 **Dark & Light Modes** | Beautiful custom theme with an animated sun/moon toggle switch. Pure dark aesthetics, clean contrast, persistent across sessions. |
+| 📐 **Diagonal Split Canvas** | Automatically cuts the background into two equal-area triangles (checkerboard transparency vs. solid background). Direction is switchable. |
+| 🎨 **Full Color Palette** | Built-in color picker + quick preset chips (White, Off-White, Light Gray, Dark, Black, Yellow). |
+| 🏷️ **Watermark Text** | Customizable text (`100% TRANSPARENT` or custom label), positionable at any corner or center, with live opacity and font scale sliders. |
+| 🖋️ **Outline Stroke** | Add clean outer strokes to text with configurable colors and thickness (Thin, Normal, Medium, Thick, Extra Bold). |
+| ⚡ **Zero Distortion** | Original PNG is alpha-composited with zero cropping, distortion, or unwanted resizing. |
+| 👁️ **Live Viewport** | Real-time responsive preview with debounced updates and "Fit to View" / "100% Original" zoom toggle. |
+| 🚀 **Asynchronous Worker** | Batch generation runs on background threads — UI never freezes or stutters even with thousands of 4K images. |
+| 💾 **Settings Persistence** | Remembers all your last-used folders, colors, positions, and styling preferences automatically via `QSettings`. |
+
+---
+
+## 🛠️ Project Structure
+
+```
+Freepik-Prewview-Generator/
+├── main.py                     # Main application UI, dark/light theme, event handling
+├── processor.py                # Image composite rendering, diagonal background, font layout
+├── requirements.txt            # Python dependencies (PySide6, Pillow)
+├── app.ico                     # Multi-resolution application icon
+├── preview-light.png           # Light mode screenshot
+├── preview-dark.png            # Dark mode screenshot
+├── install.ps1                 # 1-click Windows installer (bypasses SmartScreen + creates icon)
+├── install.sh                  # 1-click macOS & Linux installer (bypasses Gatekeeper + creates icon)
+├── install_desktop_icon.bat    # Windows local desktop shortcut creator
+├── build_windows.bat           # Windows PyInstaller build script
+├── run_app.bat                 # Windows quick launcher script
+├── setup_windows.bat           # Windows one-click environment setup script
+└── .github/workflows/
+    └── build.yml               # GitHub Actions cross-platform automated CI/CD pipeline
+```
+
+---
+
+## ❓ Why Open-Source Apps Need One-Line Installers
+
+Operating systems require commercial developer certificates ($99/year for Apple, $300–$500/year for Windows EV) to download apps via web browsers without security warnings.
+
+Running the **1-line terminal command** tells your operating system that **you** requested the installation directly from the developer's source repository:
+- On **Windows**, PowerShell uses `Unblock-File` to remove the browser download flag ("Mark of the Web"), preventing SmartScreen false positives.
+- On **macOS**, `xattr -cr` clears the quarantine attribute, bypassing the "Unidentified Developer" gatekeeper prompt.
+- On **Linux**, it sets appropriate desktop database entries and execution bits.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License — free for personal and commercial preview generation.
+
+Created by **[Mustaqeem66](https://github.com/Mustaqeem66)**.

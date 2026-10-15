@@ -56,13 +56,14 @@ jobs:
         run: |
           pyinstaller --noconsole --name PreviewGen --add-data "app.ico${{ runner.os == 'Windows' && ';' || ':' }}." main.py --clean -y
 
-      # ── Windows: zip the dist folder ──
+      # ── Windows: zip the dist folder with shortcut installer ──
       - name: Package Windows build
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Compress-Archive -Path dist/PreviewGen/* -DestinationPath PreviewGen-Windows.zip
-
+          Copy-Item install_desktop_icon.bat dist\PreviewGen\Install-Desktop-Icon.bat
+          Copy-Item app.ico dist\PreviewGen\app.ico
+          Compress-Archive -Path dist\PreviewGen\* -DestinationPath PreviewGen-Windows.zip -Force
       # ── macOS: create .dmg ──
       - name: Package macOS build
         if: runner.os == 'macOS'

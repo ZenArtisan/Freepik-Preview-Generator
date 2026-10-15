@@ -30,9 +30,11 @@ Desktop.ini
 ideation.md
 New Text Document.txt
 New Project*.svg
-*.Zone.Identifier
+*Zone.Identifier*
+*:Zone.Identifier
+*.spec
 get-pip.py
-Sample-preview-image.png
+Sample-preview-image*.png
 
 # Output directories
 output_jpg/
@@ -42,9 +44,9 @@ input_png/
 
 # Allow repo assets
 !preview.png
+!preview-light.png
 !preview-dark.png
 !app.ico
-
 # Build artifacts
 *.exe
 *.dmg
