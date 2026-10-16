@@ -49,16 +49,13 @@ def configure_logging() -> Path:
     log_file = log_dir / "previewgen.log"
     handler = RotatingFileHandler(log_file, maxBytes=2_000_000, backupCount=3, encoding="utf-8")
     handlers: list[logging.Handler] = [handler]
-    if sys.stdout is not None:
-        try:
-            import io
-            stream = sys.stdout
-            if hasattr(stream, "buffer") and sys.platform == "win32":
-                import codecs
-                stream = codecs.getwriter("utf-8")(stream.buffer, errors="replace")
-            handlers.append(logging.StreamHandler(stream))
-        except Exception:
-            handlers.append(logging.StreamHandler(sys.stdout))
+    # For frozen GUI apps on Windows without console, sys.stdout can be None or raise OSError 22 on write
+    if sys.platform != "win32" or not getattr(sys, "frozen", False):
+        if sys.stdout is not None:
+            try:
+                handlers.append(logging.StreamHandler(sys.stdout))
+            except Exception:
+                pass
     logging.basicConfig(
         level=logging.INFO,
         handlers=handlers,
