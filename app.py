@@ -48,9 +48,20 @@ def configure_logging() -> Path:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "previewgen.log"
     handler = RotatingFileHandler(log_file, maxBytes=2_000_000, backupCount=3, encoding="utf-8")
+    handlers: list[logging.Handler] = [handler]
+    if sys.stdout is not None:
+        try:
+            import io
+            stream = sys.stdout
+            if hasattr(stream, "buffer") and sys.platform == "win32":
+                import codecs
+                stream = codecs.getwriter("utf-8")(stream.buffer, errors="replace")
+            handlers.append(logging.StreamHandler(stream))
+        except Exception:
+            handlers.append(logging.StreamHandler(sys.stdout))
     logging.basicConfig(
         level=logging.INFO,
-        handlers=[handler, logging.StreamHandler(sys.stdout)],
+        handlers=handlers,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     logging.info(
