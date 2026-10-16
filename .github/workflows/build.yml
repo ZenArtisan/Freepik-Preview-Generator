@@ -178,6 +178,7 @@ jobs:
           mkdir -p PreviewGen.AppDir/usr/bin
           mkdir -p PreviewGen.AppDir/usr/share/applications
           mkdir -p PreviewGen.AppDir/usr/share/icons/hicolor/256x256/apps
+          cp -r dist/PreviewGen/* PreviewGen.AppDir/usr/bin/
           python -c "from PIL import Image; Image.open('app.ico').save('PreviewGen.AppDir/previewgen.png')"
           cp PreviewGen.AppDir/previewgen.png PreviewGen.AppDir/.DirIcon
           cp PreviewGen.AppDir/previewgen.png PreviewGen.AppDir/usr/share/icons/hicolor/256x256/apps/previewgen.png
