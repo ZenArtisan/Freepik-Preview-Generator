@@ -29,6 +29,11 @@ from processor import (
 
 SETTINGS_FILE = Path.home() / ".previewgen_settings.json"
 
+if sys.platform.startswith("linux"):
+    flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+    if "--no-sandbox" not in flags:
+        os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = f"{flags} --no-sandbox".strip()
+
 # On Windows, PyInstaller --noconsole sets sys.stdout/sys.stderr to invalid handles.
 # If unhandled, writing or flushing during interpreter shutdown raises OSError 22.
 if sys.platform == "win32" and getattr(sys, "frozen", False):

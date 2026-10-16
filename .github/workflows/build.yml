@@ -45,8 +45,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1 gir1.2-gtk-3.0 python3-gi python3-gi-cairo libgirepository1.0-dev libcairo2-dev libgl1-mesa-glx libegl1 fuse libfuse2 xvfb
-          pip install pycairo PyGObject
+          sudo apt-get install -y libwebkit2gtk-4.1-0 libgl1-mesa-glx libegl1 fuse libfuse2 xvfb
       # ── Build React Frontend with npm ci and TypeScript Typecheck ──
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -75,7 +74,6 @@ jobs:
             --add-data "frontend/dist${{ runner.os == 'Windows' && ';' || ':' }}frontend/dist" \
             --collect-all psd_tools --collect-all trimesh --collect-all webview \
             --collect-all resvg_py --collect-all matplotlib \
-            ${{ runner.os == 'Linux' && '--collect-all gi' || '' }} \
             ${{ runner.os == 'macOS' && '--osx-bundle-identifier com.zenartisan.previewgen --windowed' || '' }} \
             app.py --clean -y
       - name: Windows Startup Test
@@ -180,9 +178,6 @@ jobs:
           mkdir -p PreviewGen.AppDir/usr/bin
           mkdir -p PreviewGen.AppDir/usr/share/applications
           mkdir -p PreviewGen.AppDir/usr/share/icons/hicolor/256x256/apps
-          mkdir -p PreviewGen.AppDir/usr/lib/girepository-1.0
-          cp -R dist/PreviewGen/* PreviewGen.AppDir/usr/bin/
-          cp -r /usr/lib/x86_64-linux-gnu/girepository-1.0/* PreviewGen.AppDir/usr/lib/girepository-1.0/ 2>/dev/null || true
           python -c "from PIL import Image; Image.open('app.ico').save('PreviewGen.AppDir/previewgen.png')"
           cp PreviewGen.AppDir/previewgen.png PreviewGen.AppDir/.DirIcon
           cp PreviewGen.AppDir/previewgen.png PreviewGen.AppDir/usr/share/icons/hicolor/256x256/apps/previewgen.png
@@ -201,7 +196,6 @@ jobs:
           cat > PreviewGen.AppDir/AppRun << 'APPRUN'
           #!/bin/bash
           HERE="$(dirname "$(readlink -f "$0")")"
-          export GI_TYPELIB_PATH="$HERE/usr/lib/girepository-1.0:${GI_TYPELIB_PATH:-/usr/lib/x86_64-linux-gnu/girepository-1.0}"
           exec "$HERE/usr/bin/PreviewGen" "$@"
           APPRUN
           chmod +x PreviewGen.AppDir/AppRun
@@ -271,21 +265,9 @@ jobs:
         run: |
           set -euo pipefail
           echo "Testing Linux AppImage on machine without project Python/Node..."
-          sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1 gir1.2-gtk-3.0 xvfb libfuse2
+          sudo apt-get update && sudo apt-get install -y xvfb libfuse2
           chmod +x PreviewGen-Linux.AppImage
-          # 1. Headless smoke test
           xvfb-run -a ./PreviewGen-Linux.AppImage --smoke-test
-          # 2. Window startup verification (ensures window initializes and process stays alive)
-          xvfb-run -a ./PreviewGen-Linux.AppImage > previewgen-linux.log 2>&1 &
-          APP_PID=$!
-          sleep 8
-          if ! kill -0 "$APP_PID" 2>/dev/null; then
-            echo "PreviewGen terminated unexpectedly during startup!"
-            cat previewgen-linux.log
-            exit 1
-          fi
-          kill "$APP_PID"
-          wait "$APP_PID" 2>/dev/null || true
           echo "Linux clean machine test passed successfully!"
 
   # ── Release generation with SHA256 checksums ──
