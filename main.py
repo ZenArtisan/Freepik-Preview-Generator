@@ -1,10 +1,10 @@
 """
-PreviewGen - Desktop Studio Entry Point
-Runs the pywebview + React + Framer Motion desktop application.
+PreviewGen Launcher
+Delegates directly to app.py (pywebview + React Studio)
 """
 from __future__ import annotations
-
-from app import main
+import sys
+import app
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(app.main())

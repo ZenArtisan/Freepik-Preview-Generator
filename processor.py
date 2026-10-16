@@ -603,41 +603,62 @@ def _load_maya(source_path: Path) -> Image.Image:
     )
 
 
-def _load_cad_solid(source_path: Path, config: PreviewConfig) -> Image.Image:
+_MESH_CACHE: dict[tuple[str, float], Any] = {}
+
+def _load_cad_solid(source_path: Path, config: PreviewConfig, target_dimension: int = 2400) -> Image.Image:
     """Convert universal CAD solids (.step, .stp, .iges, .igs) into 3D meshes for 360° orbit preview."""
     try:
-        import cascadio
-        glb_bytes = cascadio.to_glb_bytes(str(source_path))
-        import trimesh
-        mesh = trimesh.load(BytesIO(glb_bytes), file_type="glb")
-        if isinstance(mesh, trimesh.Scene):
-            try:
-                mesh = mesh.to_geometry()
-            except Exception:
-                mesh = trimesh.util.concatenate(mesh.dump())
+        source_path = Path(source_path).resolve()
+        mtime = source_path.stat().st_mtime if source_path.exists() else 0.0
+        key = (str(source_path), mtime)
+        if key in _MESH_CACHE:
+            mesh = _MESH_CACHE[key]
+        else:
+            import cascadio
+            glb_bytes = cascadio.to_glb_bytes(str(source_path))
+            import trimesh
+            mesh = trimesh.load(BytesIO(glb_bytes), file_type="glb")
+            if isinstance(mesh, trimesh.Scene):
+                try:
+                    geom = mesh.to_geometry()
+                    if isinstance(geom, dict):
+                        mesh = trimesh.util.concatenate(list(geom.values()))
+                    else:
+                        mesh = geom
+                except Exception:
+                    mesh = trimesh.util.concatenate(mesh.dump())
+            _MESH_CACHE[key] = mesh
+            if len(_MESH_CACHE) > 16:
+                _MESH_CACHE.pop(next(iter(_MESH_CACHE)))
+
         return render_3d_mesh(
             mesh=mesh,
             yaw_deg=config.yaw,
             pitch_deg=config.pitch,
             model_color=config.model_color,
+            target_dimension=target_dimension,
         )
     except Exception as exc:
         raise RuntimeError(f"Could not convert CAD solid to 3D mesh: {exc}")
 
 
-def load_source_image(source_path: Path, config: PreviewConfig | None = None) -> Image.Image:
+def load_source_image(
+    source_path: Path,
+    config: PreviewConfig | None = None,
+    max_dimension: int | None = None,
+) -> Image.Image:
     """Load an input file (2D images, PSD, 3D meshes, CAD files) into a verified RGBA PIL Image."""
     source_path = Path(source_path)
     ext = source_path.suffix.lower()
 
     if ext in (".svg", ".svgz"):
-        return _load_svg(source_path)
+        return _load_svg(source_path, max_dimension=max_dimension)
 
     if ext == ".psd":
         return _load_psd(source_path)
 
     if ext == ".dxf":
-        return _load_dxf(source_path)
+        return _load_dxf(source_path, target_dimension=max_dimension or 2400)
 
     if ext == ".dwg":
         return _load_dwg(source_path)
@@ -652,11 +673,10 @@ def load_source_image(source_path: Path, config: PreviewConfig | None = None) ->
         return _load_maya(source_path)
 
     if ext in (".step", ".stp", ".iges", ".igs"):
-        return _load_cad_solid(source_path, config or PreviewConfig())
+        return _load_cad_solid(source_path, config or PreviewConfig(), target_dimension=max_dimension or 2400)
 
     if ext in SUPPORTED_3D_EXTENSIONS:
-        return _load_3d(source_path, config or PreviewConfig())
-
+        return _load_3d(source_path, config or PreviewConfig(), target_dimension=max_dimension or 2400)
     # Standard raster formats (.png, .webp, .tif, .tiff)
     with Image.open(source_path) as img:
         if getattr(img, "is_animated", False):
@@ -686,25 +706,12 @@ def render_3d_mesh(
     if not hasattr(mesh, "vertices") or len(mesh.vertices) == 0:
         return Image.new("RGBA", (W, H), (0, 0, 0, 0))
 
-    # Convert textures or vertex colors to face colors so models are rendered with true colors
-    if hasattr(mesh, "visual") and mesh.visual is not None:
-        if getattr(mesh.visual, "kind", None) == "texture" or hasattr(mesh.visual, "uv"):
-            try:
-                mesh = mesh.copy()
-                mesh.visual = mesh.visual.to_color()
-            except Exception:
-                pass
-        elif hasattr(mesh.visual, "vertex_colors") and mesh.visual.vertex_colors is not None and len(mesh.visual.vertex_colors) > 0:
-            try:
-                mesh = mesh.copy()
-                mesh.visual = mesh.visual.to_color()
-            except Exception:
-                pass
-
     verts = mesh.vertices - mesh.centroid
-    max_radius = float(np.max(np.linalg.norm(verts, axis=1)))
-    if max_radius > 0:
-        verts = verts / max_radius
+    norms = np.linalg.norm(verts, axis=1)
+    max_radius = float(np.max(norms)) if len(norms) > 0 else 1.0
+    if max_radius <= 0 or not np.isfinite(max_radius):
+        max_radius = 1.0
+    verts = verts / max_radius
 
     yaw = np.radians(yaw_deg)
     pitch = np.radians(pitch_deg)
@@ -724,30 +731,40 @@ def render_3d_mesh(
     v_rot = verts @ R.T
     scale = min(W, H) * 0.42
     pts_2d = np.column_stack([v_rot[:, 0], -v_rot[:, 1]]) * scale + np.array([W / 2, H / 2])
+    pts_2d = np.nan_to_num(pts_2d, nan=W / 2.0)
+
     # Point cloud fallback when no faces exist
     if not hasattr(mesh, "faces") or len(mesh.faces) == 0:
         result_img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(result_img)
         pt_col = (*model_color, 220)
-        for pt in pts_2d:
+        step = max(1, len(pts_2d) // 25_000)
+        for pt in pts_2d[::step]:
             draw.ellipse([pt[0] - 2, pt[1] - 2, pt[0] + 2, pt[1] + 2], fill=pt_col)
         return result_img
 
-    n_rot = mesh.face_normals @ R.T
+    normals = mesh.face_normals if hasattr(mesh, "face_normals") and mesh.face_normals is not None else np.zeros((len(mesh.faces), 3))
+    n_rot = np.nan_to_num(normals @ R.T, nan=0.0)
     face_z = v_rot[mesh.faces].mean(axis=1)[:, 2]
     order = np.argsort(face_z)
 
     visible_mask = n_rot[:, 2] > -0.55
     visible_order = [idx for idx in order if visible_mask[idx]]
 
+    # Optimization: subsample faces during fast live preview for heavy models
+    if target_dimension <= 1000 and len(visible_order) > 25_000:
+        stride = max(2, len(visible_order) // 20_000)
+        visible_order = visible_order[::stride]
+
     light_dir = np.array([0.45, 0.65, 0.61])
     light_dir /= np.linalg.norm(light_dir)
-    diffuse = np.abs(n_rot @ light_dir) * 0.72
+    diffuse = np.nan_to_num(np.abs(n_rot @ light_dir) * 0.72, nan=0.0)
     ambient = 0.35
-    intensity = np.clip(ambient + diffuse, 0.0, 1.0)
+    intensity = np.nan_to_num(np.clip(ambient + diffuse, 0.0, 1.0), nan=float(ambient))
 
     has_face_colors = (
-        hasattr(mesh.visual, "face_colors")
+        hasattr(mesh, "visual")
+        and hasattr(mesh.visual, "face_colors")
         and mesh.visual.face_colors is not None
         and len(mesh.visual.face_colors) == len(mesh.faces)
     )
@@ -763,8 +780,9 @@ def render_3d_mesh(
         else:
             base_c = default_base
 
-        lit = tuple(np.clip(base_c * intensity[idx], 0, 255).astype(int))
-        poly = [(pts_2d[v][0], pts_2d[v][1]) for v in face]
+        lit_val = np.nan_to_num(base_c * intensity[idx], nan=default_base)
+        lit = tuple(np.clip(lit_val, 0, 255).astype(int))
+        poly = [(float(pts_2d[v][0]), float(pts_2d[v][1])) for v in face]
         draw.polygon(poly, fill=lit)
 
     return result_img
@@ -829,7 +847,7 @@ def extract_blend_thumbnail(path: Path) -> Image.Image | None:
         return None
 
 
-def _load_3d(source_path: Path, config: PreviewConfig) -> Image.Image:
+def _load_3d(source_path: Path, config: PreviewConfig, target_dimension: int = 2400) -> Image.Image:
     """Load and render 3D formats (.obj, .gltf, .glb, .stl, .ply, .blend) into an RGBA PIL image."""
     ext = source_path.suffix.lower()
 
@@ -891,21 +909,44 @@ def _load_3d(source_path: Path, config: PreviewConfig) -> Image.Image:
     except ImportError:
         raise RuntimeError("trimesh is required for 3D model preview generation. Run: pip install trimesh")
 
-    loaded = trimesh.load(source_path)
-    if isinstance(loaded, trimesh.Scene):
-        if len(loaded.geometry) == 0:
-            raise ValueError("3D Scene contains no valid geometry")
-        try:
-            mesh = loaded.to_geometry()
-        except Exception:
-            mesh = trimesh.util.concatenate(loaded.dump())
+    source_path = Path(source_path).resolve()
+    mtime = source_path.stat().st_mtime if source_path.exists() else 0.0
+    key = (str(source_path), mtime)
+    if key in _MESH_CACHE:
+        mesh = _MESH_CACHE[key]
     else:
-        mesh = loaded
+        loaded = trimesh.load(source_path)
+        if isinstance(loaded, trimesh.Scene):
+            if len(loaded.geometry) == 0:
+                raise ValueError("3D Scene contains no valid geometry")
+            try:
+                geom = loaded.to_geometry()
+                if isinstance(geom, dict):
+                    mesh = trimesh.util.concatenate(list(geom.values()))
+                else:
+                    mesh = geom
+            except Exception:
+                mesh = trimesh.util.concatenate(loaded.dump())
+        else:
+            mesh = loaded
+
+        # Pre-convert visual colors once so we never repeat it during orbit
+        if hasattr(mesh, "visual") and mesh.visual is not None:
+            try:
+                mesh.visual = mesh.visual.to_color()
+            except Exception:
+                pass
+
+        _MESH_CACHE[key] = mesh
+        if len(_MESH_CACHE) > 16:
+            _MESH_CACHE.pop(next(iter(_MESH_CACHE)))
+
     return render_3d_mesh(
         mesh=mesh,
         yaw_deg=config.yaw,
         pitch_deg=config.pitch,
         model_color=config.model_color,
+        target_dimension=target_dimension,
     )
 
 
@@ -940,7 +981,7 @@ def preview_jpeg_bytes(
     if config is None:
         config = PreviewConfig(text=text if text is not None else DEFAULT_TEXT)
 
-    source = load_source_image(source_path, config)
+    source = load_source_image(source_path, config, max_dimension=max_dimension)
     orig_w, orig_h = source.size
     if max(orig_w, orig_h) > max_dimension:
         ratio = max_dimension / max(orig_w, orig_h)

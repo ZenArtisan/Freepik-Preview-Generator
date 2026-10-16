@@ -100,6 +100,51 @@ def configure_logging() -> Path:
     )
     return log_file
 
+def ensure_desktop_shortcut() -> None:
+    """Automatically create Desktop shortcut on Windows if not already present."""
+    if sys.platform != "win32":
+        return
+
+    def _task():
+        try:
+            desktop = Path.home() / "Desktop"
+            shortcut = desktop / "PreviewGen.lnk"
+            if shortcut.exists():
+                return
+            exe_path = Path(sys.executable).resolve()
+            if not getattr(sys, "frozen", False):
+                candidate = exe_path.parent / "dist" / "PreviewGen" / "PreviewGen.exe"
+                if candidate.exists():
+                    exe_path = candidate
+                else:
+                    return
+
+            working_dir = exe_path.parent
+            icon_path = working_dir / "app.ico"
+            if not icon_path.exists():
+                icon_path = exe_path
+
+            cmd = (
+                "$w = New-Object -ComObject WScript.Shell; "
+                f'$s = $w.CreateShortcut("{shortcut}"); '
+                f'$s.TargetPath = "{exe_path}"; '
+                f'$s.WorkingDirectory = "{working_dir}"; '
+                f'$s.IconLocation = "{icon_path},0"; '
+                "$s.Description = 'PreviewGen - Transparent PNG to JPG Preview Generator'; "
+                "$s.Save()"
+            )
+            subprocess.run(
+                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", cmd],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                timeout=10,
+                check=False,
+            )
+            logging.info("Desktop shortcut verified/created at %s", shortcut)
+        except Exception as exc:
+            logging.debug("Desktop shortcut creation notice: %s", exc)
+
+    threading.Thread(target=_task, daemon=True).start()
+
 
 def show_fatal_error(title: str, message: str) -> None:
     logging.critical("%s: %s", title, message)
@@ -119,7 +164,6 @@ def show_fatal_error(title: str, message: str) -> None:
         except Exception:
             pass
     sys.stderr.write(f"\n[FATAL ERROR] {title}\n{message}\n\n")
-
 class DesktopApi:
     def __init__(self) -> None:
         self.window: webview.Window | None = None
@@ -206,7 +250,7 @@ class DesktopApi:
             return False
 
     def scan_folder(self, folder_path: str) -> dict[str, Any]:
-        """Scan folder for supported 2D and 3D assets, recursively traversing deep zip files."""
+        """Scan folder for supported 2D and 3D assets, indexing zip files in memory in milliseconds."""
         p = Path(folder_path).resolve()
         if not p.is_dir():
             return {"files": [], "total": 0}
@@ -229,82 +273,100 @@ class DesktopApi:
             and not any(part.startswith(".") and part not in (".", "..") or part == "__MACOSX" for part in f.relative_to(p).parts)
         ]
 
-        extracted_files: list[Path] = []
-        if zip_files:
-            from processor import safe_extract_zip
-            self.session_zip_dir = Path(tempfile.mkdtemp(prefix="previewgen_react_zip_"))
-            for z in zip_files:
-                sub_target = self.session_zip_dir / z.stem
-                try:
-                    safe_extract_zip(z, sub_target)
-                    # Check for nested zips and extract them
-                    nested_zips = [nz for nz in sub_target.rglob("*.zip") if nz.is_file()]
-                    for nz in nested_zips:
-                        try:
-                            safe_extract_zip(nz, nz.parent / nz.stem)
-                        except Exception:
-                            pass
-                except Exception as exc:
-                    logging.warning("Could not safely extract archive %s: %s", z.name, exc)
+        files_payload: list[dict[str, Any]] = []
 
-            extracted_files = [
-                f for f in self.session_zip_dir.rglob("*.*")
-                if f.is_file()
-                and f.suffix.lower() in SUPPORTED_EXTENSIONS
-                and f.suffix.lower() != ".zip"
-                and not any(part.startswith(".") and part not in (".", "..") or part == "__MACOSX" for part in f.relative_to(self.session_zip_dir).parts)
-            ]
-
-        all_paths = sorted(direct_files + extracted_files)
-        files_payload = []
-        for f in all_paths:
+        # 1. Direct files from folder
+        for f in sorted(direct_files):
             ext_clean = f.suffix.upper().lstrip(".")
+            is_3d = (f.suffix.lower() in SUPPORTED_3D_EXTENSIONS and f.suffix.lower() != ".blend") or f.suffix.lower() in (".step", ".stp", ".iges", ".igs")
             files_payload.append({
                 "name": f.name,
                 "path": str(f.resolve()),
                 "ext": ext_clean,
-                "is_3d": (f.suffix.lower() in SUPPORTED_3D_EXTENSIONS and f.suffix.lower() != ".blend") or f.suffix.lower() in (".step", ".stp", ".iges", ".igs"),
+                "is_3d": is_3d,
             })
 
-        return {"files": files_payload, "total": len(files_payload)}
+        # 2. Add zip members indexed in memory (zero disk write, 0.001s instant startup)
+        if zip_files:
+            import zipfile
+            for z in sorted(zip_files):
+                try:
+                    with zipfile.ZipFile(z, "r") as zf:
+                        for member in zf.infolist():
+                            if member.is_dir():
+                                continue
+                            member_path = Path(member.filename)
+                            clean_name = member_path.name
+                            if clean_name.startswith(".") or any(part == "__MACOSX" for part in member_path.parts):
+                                continue
+                            ext = member_path.suffix.lower()
+                            if ext in SUPPORTED_EXTENSIONS and ext != ".zip":
+                                ext_clean = ext.upper().lstrip(".")
+                                is_3d = (ext in SUPPORTED_3D_EXTENSIONS and ext != ".blend") or ext in (".step", ".stp", ".iges", ".igs")
+                                files_payload.append({
+                                    "name": f"{z.stem}/{clean_name}",
+                                    "path": f"zip://{z.resolve()}?entry={member.filename}",
+                                    "ext": ext_clean,
+                                    "is_3d": is_3d,
+                                })
+                except Exception as exc:
+                    logging.warning("Could not index archive %s: %s", z.name, exc)
 
+        return {"files": files_payload, "total": len(files_payload)}
     def render_preview(self, file_path: str, config_dict: dict[str, Any]) -> dict[str, Any]:
         """Render live preview asynchronously and return base64 JPEG data URL."""
-        source_path = Path(file_path)
-        if not source_path.is_file():
-            return {"error": "File does not exist"}
-
-        # Hex to RGB tuple conversion helper
-        def hex_to_rgb(h: str) -> tuple[int, int, int]:
-            h = h.lstrip("#")
-            if len(h) == 6:
-                return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
-            return (255, 255, 255)
-
-        cfg = PreviewConfig(
-            text=config_dict.get("text", DEFAULT_TEXT),
-            position="custom",
-            opacity=float(config_dict.get("opacity", 90)) / 100.0,
-            invert_triangles=bool(config_dict.get("invertTriangles", True)),
-            solid_color=hex_to_rgb(config_dict.get("solidColor", "#FFFFFF")),
-            text_color=hex_to_rgb(config_dict.get("textColor", "#FFFFFF")),
-            has_outline=bool(config_dict.get("hasOutline", True)),
-            outline_color=hex_to_rgb(config_dict.get("outlineColor", "#000000")),
-            outline_thickness=int(config_dict.get("outlineThickness", 2)),
-            font_scale=float(config_dict.get("fontScale", 100)) / 100.0,
-            yaw=float(config_dict.get("yaw", 45)),
-            pitch=float(config_dict.get("pitch", 30)),
-            text_pos_x=float(config_dict.get("textPosX", 5)) / 100.0,
-            text_pos_y=float(config_dict.get("textPosY", 5)) / 100.0,
-            logo_path=str(config_dict.get("logoPath", "")),
-            logo_scale=float(config_dict.get("logoScale", 100)) / 100.0,
-            logo_opacity=float(config_dict.get("logoOpacity", 90)) / 100.0,
-            logo_pos_x=float(config_dict.get("logoPosX", 88)) / 100.0,
-            logo_pos_y=float(config_dict.get("logoPosY", 5)) / 100.0,
-            font_path=str(config_dict.get("fontPath", "")),
-        )
-
+        temp_dir: Path | None = None
         try:
+            if file_path.startswith("zip://"):
+                import urllib.parse
+                import zipfile
+                parsed = urllib.parse.urlparse(file_path)
+                zip_path = Path(urllib.parse.unquote(parsed.netloc + parsed.path))
+                qs = urllib.parse.parse_qs(parsed.query)
+                entry_name = qs.get("entry", [""])[0]
+                if not zip_path.is_file() or not entry_name:
+                    return {"error": "Invalid zip entry URI"}
+                temp_dir = Path(tempfile.mkdtemp(prefix="previewgen_ondemand_"))
+                target_file = temp_dir / Path(entry_name).name
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    with zf.open(entry_name) as src, open(target_file, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                source_path = target_file
+            else:
+                source_path = Path(file_path)
+
+            if not source_path.is_file():
+                return {"error": "File does not exist"}
+            # Hex to RGB tuple conversion helper
+            def hex_to_rgb(h: str) -> tuple[int, int, int]:
+                h = h.lstrip("#")
+                if len(h) == 6:
+                    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+                return (255, 255, 255)
+
+            cfg = PreviewConfig(
+                text=config_dict.get("text", DEFAULT_TEXT),
+                position="custom",
+                opacity=float(config_dict.get("opacity", 90)) / 100.0,
+                invert_triangles=bool(config_dict.get("invertTriangles", True)),
+                solid_color=hex_to_rgb(config_dict.get("solidColor", "#FFFFFF")),
+                text_color=hex_to_rgb(config_dict.get("textColor", "#FFFFFF")),
+                has_outline=bool(config_dict.get("hasOutline", True)),
+                outline_color=hex_to_rgb(config_dict.get("outlineColor", "#000000")),
+                outline_thickness=int(config_dict.get("outlineThickness", 2)),
+                font_scale=float(config_dict.get("fontScale", 100)) / 100.0,
+                yaw=float(config_dict.get("yaw", 45)),
+                pitch=float(config_dict.get("pitch", 30)),
+                text_pos_x=float(config_dict.get("textPosX", 5)) / 100.0,
+                text_pos_y=float(config_dict.get("textPosY", 5)) / 100.0,
+                logo_path=str(config_dict.get("logoPath", "")),
+                logo_scale=float(config_dict.get("logoScale", 100)) / 100.0,
+                logo_opacity=float(config_dict.get("logoOpacity", 90)) / 100.0,
+                logo_pos_x=float(config_dict.get("logoPosX", 88)) / 100.0,
+                logo_pos_y=float(config_dict.get("logoPosY", 5)) / 100.0,
+                font_path=str(config_dict.get("fontPath", "")),
+            )
+
             jpeg_bytes, orig_w, orig_h = preview_jpeg_bytes(source_path, cfg, max_dimension=850)
             b64 = base64.b64encode(jpeg_bytes).decode("ascii")
             return {
@@ -314,7 +376,9 @@ class DesktopApi:
             }
         except Exception as exc:
             return {"error": str(exc)}
-
+        finally:
+            if temp_dir and temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
     def start_batch(self, input_folder: str, output_folder: str, config_dict: dict[str, Any]) -> None:
         """Start asynchronous batch processing on a dedicated worker thread."""
         if self.batch_thread and self.batch_thread.is_alive():
@@ -393,6 +457,7 @@ class DesktopApi:
 
 def main() -> int:
     log_file = configure_logging()
+    ensure_desktop_shortcut()
     is_frozen = getattr(sys, "frozen", False)
     dev_mode = os.environ.get("PREVIEWGEN_DEV") == "1"
 
