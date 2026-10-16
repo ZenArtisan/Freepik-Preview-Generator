@@ -7,17 +7,30 @@ echo        PreviewGen - Local Desktop Installer
 echo ==========================================================
 echo.
 
-set "TARGET_EXE=%~dp0dist\PreviewGen\PreviewGen.exe"
+set "TARGET_EXE=%~dp0PreviewGen.exe"
+set "WORKING_DIR=%~dp0"
 set "APP_ICO=%~dp0app.ico"
 
 if not exist "!TARGET_EXE!" (
-    echo Executable not found in dist\. Building now with build_windows.bat...
-    call build_windows.bat
+    set "TARGET_EXE=%~dp0dist\PreviewGen\PreviewGen.exe"
+    set "WORKING_DIR=%~dp0dist\PreviewGen"
     if not exist "!TARGET_EXE!" (
-        echo.
-        echo [ERROR] Build failed or dist\PreviewGen\PreviewGen.exe was not created.
-        pause
-        exit /b 1
+        if exist "%~dp0build_windows.bat" (
+            echo Executable not found in dist\. Building now with build_windows.bat...
+            call "%~dp0build_windows.bat"
+        )
+        if not exist "!TARGET_EXE!" (
+            echo.
+            echo [ERROR] PreviewGen.exe was not found.
+            pause
+            exit /b 1
+        )
+    )
+)
+
+if not exist "!APP_ICO!" (
+    if exist "%WORKING_DIR%\app.ico" (
+        set "APP_ICO=%WORKING_DIR%\app.ico"
     )
 )
 
@@ -27,9 +40,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$desktop = [Environment]::GetFolderPath('Desktop'); " ^
     "if (Test-Path $desktop) { " ^
     "  $s = $wsh.CreateShortcut(\"$desktop\PreviewGen.lnk\"); " ^
-    "  $s.TargetPath = '%TARGET_EXE%'; " ^
-    "  $s.WorkingDirectory = '%~dp0dist\PreviewGen'; " ^
-    "  $s.IconLocation = '%APP_ICO%,0'; " ^
+    "  $s.TargetPath = '!TARGET_EXE!'; " ^
+    "  $s.WorkingDirectory = '!WORKING_DIR!'; " ^
+    "  $s.IconLocation = '!APP_ICO!,0'; " ^
     "  $s.Description = 'PreviewGen - Transparent PNG to JPG Preview Generator'; " ^
     "  $s.Save(); " ^
     "}"
@@ -40,9 +53,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$startMenu = \"$([Environment]::GetFolderPath('Programs'))\PreviewGen\"; " ^
     "if (!(Test-Path $startMenu)) { New-Item -ItemType Directory -Path $startMenu -Force | Out-Null }; " ^
     "$s = $wsh.CreateShortcut(\"$startMenu\PreviewGen.lnk\"); " ^
-    "$s.TargetPath = '%TARGET_EXE%'; " ^
-    "$s.WorkingDirectory = '%~dp0dist\PreviewGen'; " ^
-    "$s.IconLocation = '%APP_ICO%,0'; " ^
+    "  $s.TargetPath = '!TARGET_EXE!'; " ^
+    "  $s.WorkingDirectory = '!WORKING_DIR!'; " ^
+    "  $s.IconLocation = '!APP_ICO!,0'; " ^
     "$s.Description = 'PreviewGen - Transparent PNG to JPG Preview Generator'; " ^
     "$s.Save()"
 

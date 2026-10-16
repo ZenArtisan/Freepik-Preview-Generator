@@ -79,7 +79,7 @@ Regardless of whether the input is a 2D vector, a 500MB Photoshop file, or a 3D 
 
 ### 3.3. SVG (`.svg`, `.svgz`)
 - **Use Case:** Vector icon packs, digital stickers, typography badges, logo kits (Etsy, Freepik vector uploads).
-- **Ingestion Library:** PySide6 `QtSvg.QSvgRenderer` (Zero external native C libraries like `cairosvg` or `librsvg`).
+- **Ingestion Library:** `resvg_py` (High-performance Rust-based SVG rasterizer).
 - **Technical Considerations:**
   - **Resolution Target:** Unlike raster images that have fixed pixel counts, SVGs are infinitely scalable.
   - **Rasterization Strategy:**
@@ -164,7 +164,7 @@ Regardless of whether the input is a 2D vector, a 500MB Photoshop file, or a 3D 
 | **`.png`** | 2D Raster | Pillow | Native 8-bit | None (included) | Current (v1.0) |
 | **`.webp`** | 2D Raster | Pillow | Native 8-bit | None (included) | **Phase 1** |
 | **`.tiff` / `.tif`** | 2D Raster | Pillow | Native (8/16-bit) | None (included) | **Phase 1** |
-| **`.svg`** | 2D Vector | PySide6 (`QtSvg`) | Vector Alpha | None (PySide6 native) | **Phase 1** |
+| **`.svg`** | 2D Vector | `resvg_py` | Vector Alpha | None (`resvg_py` wheel) | **Phase 1** |
 | **`.psd`** | 2D Layered | `psd-tools` | Multi-layer composite | `psd-tools` | **Phase 2** |
 | **`.glb` / `.gltf`** | 3D Asset | `trimesh` + `pyrender` | Offscreen RGBA buffer | `trimesh`, `pyrender` | **Phase 3** |
 | **`.obj`** | 3D Mesh | `trimesh` + `pyrender` | Offscreen RGBA buffer | `trimesh`, `pyrender` | **Phase 3** |

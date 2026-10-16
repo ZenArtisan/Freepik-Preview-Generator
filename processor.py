@@ -1,6 +1,8 @@
 from __future__ import annotations
 import os
+import shutil
 import sys
+import zipfile
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -240,16 +242,6 @@ def compose_preview(
     if alpha_max == 0:
         raise ValueError("Image is completely transparent (empty canvas)")
 
-    if alpha_min == 255:
-        # Handle CAD drawings, blueprints, or renders with uniform white/black backgrounds
-        import numpy as np
-        arr = np.array(original)
-        bg_col = arr[0, 0, :3].astype(float)
-        dist = np.linalg.norm(arr[:, :, :3].astype(float) - bg_col, axis=2)
-        if float(np.mean(dist < 15)) > 0.10:
-            alpha = np.clip((dist / 35.0) * 255.0, 0, 255).astype(np.uint8)
-            arr[:, :, 3] = alpha
-            original = Image.fromarray(arr)
     bg = make_background(
         width,
         height,
@@ -293,8 +285,11 @@ def compose_preview(
         font_size = max(14, min(240, base_font_size))
         font = _font(font_size, config.font_path)
 
+        multiplier = max(0.5, config.outline_thickness / 2.0)
+        stroke = max(1, round(font_size * 0.075 * multiplier)) if config.has_outline else 0
+
         draw_calc = ImageDraw.Draw(result)
-        box = draw_calc.textbbox((0, 0), label, font=font, stroke_width=0)
+        box = draw_calc.textbbox((0, 0), label, font=font, stroke_width=stroke)
         tw = box[2] - box[0]
         th = box[3] - box[1]
 
@@ -313,12 +308,13 @@ def compose_preview(
         alpha_fill = round(255 * clamped_opacity)
         fill_color = (*config.text_color, alpha_fill)
 
+        draw_x = x - box[0]
+        draw_y = y - box[1]
+
         if config.has_outline:
-            multiplier = max(0.5, config.outline_thickness / 2.0)
-            stroke = max(1, round(font_size * 0.075 * multiplier))
             stroke_fill = (*config.outline_color, alpha_fill)
             t_draw.text(
-                (x, y),
+                (draw_x, draw_y),
                 label,
                 font=font,
                 fill=fill_color,
@@ -327,7 +323,7 @@ def compose_preview(
             )
         else:
             t_draw.text(
-                (x, y),
+                (draw_x, draw_y),
                 label,
                 font=font,
                 fill=fill_color,
@@ -336,52 +332,41 @@ def compose_preview(
         result = Image.alpha_composite(result, text_layer)
     return result.convert("RGB")
 
-def _load_svg(source_path: Path, target_dimension: int = 3600) -> Image.Image:
-    """Rasterize an SVG/SVGZ vector file to a high-resolution RGBA PIL image."""
-    from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt
-    from PySide6.QtGui import QImage, QPainter
-    from PySide6.QtSvg import QSvgRenderer
+def _load_svg(source_path: Path, max_dimension: int | None = None) -> Image.Image:
+    """Rasterize an SVG/SVGZ vector file to an exact-resolution RGBA PIL image using resvg.
+    Handles uncompressed .svg and gzip-compressed .svgz cleanly.
+    Preserves exact declared width/height or viewBox dimensions for export.
+    If vector canvas is small (e.g. 24x24 icons) and no max_dimension is passed,
+    scales up proportionally to target marketplace resolution (2400px).
+    If max_dimension is provided (UI preview mode), scales proportionally within that bound.
+    """
+    try:
+        import gzip
+        import resvg_py
+        raw_bytes = source_path.read_bytes()
+        if raw_bytes.startswith(b"\x1f\x8b") or source_path.suffix.lower() == ".svgz":
+            svg_str = gzip.decompress(raw_bytes).decode("utf-8", errors="ignore")
+        else:
+            svg_str = raw_bytes.decode("utf-8", errors="ignore")
 
-    renderer = QSvgRenderer(str(source_path))
-    if not renderer.isValid():
-        raise ValueError("Invalid or unreadable SVG vector file")
+        png_bytes = resvg_py.svg_to_bytes(svg_str)
+        with Image.open(BytesIO(png_bytes)) as pil_img:
+            pil_img.load()
+            img = pil_img.convert("RGBA")
 
-    default_size = renderer.defaultSize()
-    w = default_size.width()
-    h = default_size.height()
-    if w <= 0 or h <= 0:
-        view_box = renderer.viewBoxF()
-        w = max(1, round(view_box.width()))
-        h = max(1, round(view_box.height()))
+        w, h = img.size
+        if w <= 0 or h <= 0:
+            raise ValueError(f"Indeterminate SVG dimensions: {w}x{h}")
 
-    if w <= 0 or h <= 0:
-        w, h = 3000, 3000
+        if max_dimension is not None and max(w, h) > max_dimension:
+            ratio = max_dimension / max(w, h)
+            tw = max(1, round(w * ratio))
+            th = max(1, round(h * ratio))
+            return img.resize((tw, th), Image.Resampling.LANCZOS)
 
-    # Scale proportionally so the longest edge reaches a crisp target resolution
-    max_dim = max(w, h)
-    scale = min(max(target_dimension / max_dim, 1.0), 6.0)
-    target_w = max(100, round(w * scale))
-    target_h = max(100, round(h * scale))
-
-    qimg = QImage(target_w, target_h, QImage.Format.Format_ARGB32_Premultiplied)
-    qimg.fill(Qt.GlobalColor.transparent)
-
-    painter = QPainter(qimg)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-    renderer.render(painter)
-    painter.end()
-
-    ba = QByteArray()
-    buf = QBuffer(ba)
-    buf.open(QIODevice.OpenModeFlag.WriteOnly)
-    qimg.save(buf, "PNG")
-    buf.close()
-
-    with Image.open(BytesIO(ba.data())) as pil_img:
-        pil_img.load()
-        return pil_img.convert("RGBA")
-
+        return img
+    except Exception as exc:
+        raise RuntimeError(f"Could not render SVG file '{source_path.name}': {exc}")
 
 def _load_psd(source_path: Path) -> Image.Image:
     """Extract the composite layer with transparency from an Adobe Photoshop PSD file."""
@@ -399,46 +384,31 @@ def _load_psd(source_path: Path) -> Image.Image:
     return composite.convert("RGBA")
 
 def _load_dxf(source_path: Path, target_dimension: int = 2400) -> Image.Image:
-    """Render an AutoCAD .dxf drawing/mesh using ezdxf and PySide6."""
+    """Render an AutoCAD .dxf drawing/mesh using ezdxf and matplotlib."""
     try:
         import ezdxf
         from ezdxf.addons.drawing import RenderContext, Frontend
-        from ezdxf.addons.drawing.pyqt import PyQtBackend
-        from PySide6.QtWidgets import QApplication, QGraphicsScene
-        from PySide6.QtGui import QImage, QPainter
-        from PySide6.QtCore import Qt, QRectF, QByteArray, QBuffer, QIODevice
+        from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
+        from matplotlib.figure import Figure
 
-        app = QApplication.instance() or QApplication([])
         doc = ezdxf.readfile(str(source_path))
         msp = doc.modelspace()
 
-        scene = QGraphicsScene()
-        backend = PyQtBackend(scene)
+        dpi = 150
+        size_in = max(4.0, min(16.0, target_dimension / dpi))
+        fig = Figure(figsize=(size_in, size_in), dpi=dpi)
+        ax = fig.add_axes([0, 0, 1, 1])
+
         ctx = RenderContext(doc)
+        backend = MatplotlibBackend(ax)
         frontend = Frontend(ctx, backend)
-        frontend.draw_layout(msp)
+        frontend.draw_layout(msp, finalize=True)
 
-        rect = scene.sceneRect()
-        w = max(50, int(rect.width()))
-        h = max(50, int(rect.height()))
-        scale = min(target_dimension / max(w, h), 4.0)
-        tw = max(100, int(w * scale))
-        th = max(100, int(h * scale))
+        buf = BytesIO()
+        fig.savefig(buf, format="png", transparent=True, dpi=dpi)
 
-        qimg = QImage(tw, th, QImage.Format.Format_ARGB32_Premultiplied)
-        qimg.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(qimg)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        scene.render(painter, QRectF(0, 0, tw, th), rect)
-        painter.end()
-
-        ba = QByteArray()
-        buf = QBuffer(ba)
-        buf.open(QIODevice.OpenModeFlag.WriteOnly)
-        qimg.save(buf, "PNG")
-        buf.close()
-
-        with Image.open(BytesIO(ba.data())) as pil_img:
+        buf.seek(0)
+        with Image.open(buf) as pil_img:
             pil_img.load()
             return pil_img.convert("RGBA")
     except Exception as exc:
@@ -457,7 +427,8 @@ def extract_dwg_thumbnail(path: Path) -> Image.Image | None:
             offset_val = struct.unpack("<i", f.read(4))[0]
             next_pos = 0x14 + offset_val
             f.seek(0, 2)
-            if next_pos >= f.tell():
+            file_end = f.tell()
+            if next_pos >= file_end:
                 return None
             f.seek(next_pos)
             byt_cnt_raw = f.read(1)
@@ -468,25 +439,34 @@ def extract_dwg_thumbnail(path: Path) -> Image.Image | None:
                 if not code_raw:
                     break
                 code = code_raw[0]
-                img_start, img_size = struct.unpack("<ii", f.read(8))
-                if code == 2:  # BMP
-                    f.seek(img_start)
-                    info_header = f.read(img_size)
-                    if len(info_header) >= 40:
-                        bi_bits = struct.unpack("<H", info_header[14:16])[0]
-                        bi_size = struct.unpack("<I", info_header[20:24])[0]
-                        c_table = (4 * (2 ** bi_bits)) if bi_bits < 9 else 0
-                        file_sz = 54 + c_table + bi_size
-                        bmp_data = b"BM" + struct.pack("<IHHI", file_sz, 0, 0, 54 + c_table) + info_header
-                        with Image.open(BytesIO(bmp_data)) as img:
+                data = f.read(8)
+                if len(data) < 8:
+                    break
+                img_start, img_size = struct.unpack("<ii", data)
+                dir_pos = f.tell()
+                try:
+                    if code == 2 and img_start > 0 and (img_start + img_size) <= file_end:
+                        f.seek(img_start)
+                        info_header = f.read(img_size)
+                        if len(info_header) >= 40:
+                            bi_bits = struct.unpack("<H", info_header[14:16])[0]
+                            bi_size = struct.unpack("<I", info_header[20:24])[0]
+                            c_table = (4 * (2 ** bi_bits)) if bi_bits < 9 else 0
+                            file_sz = max(54 + c_table + bi_size, 14 + len(info_header))
+                            bmp_data = b"BM" + struct.pack("<IHHI", file_sz, 0, 0, 54 + c_table) + info_header
+                            with Image.open(BytesIO(bmp_data)) as img:
+                                img.load()
+                                return img.convert("RGBA")
+                    elif code == 6 and img_start > 0 and (img_start + img_size) <= file_end:
+                        f.seek(img_start)
+                        png_data = f.read(img_size)
+                        with Image.open(BytesIO(png_data)) as img:
                             img.load()
                             return img.convert("RGBA")
-                elif code == 6:  # PNG
-                    f.seek(img_start)
-                    png_data = f.read(img_size)
-                    with Image.open(BytesIO(png_data)) as img:
-                        img.load()
-                        return img.convert("RGBA")
+                except Exception:
+                    pass
+                finally:
+                    f.seek(dir_pos)
         return None
     except Exception:
         return None
@@ -682,10 +662,16 @@ def load_source_image(source_path: Path, config: PreviewConfig | None = None) ->
         if getattr(img, "is_animated", False):
             img.seek(0)
         img.load()
-        if img.mode in ("CMYK", "YCbCr"):
-            img = img.convert("RGB")
-        return img.convert("RGBA")
+        from PIL import ImageOps
+        img = ImageOps.exif_transpose(img) or img
 
+        if img.mode in ("I;16", "I;16L", "I;16B", "I"):
+            import numpy as np
+            arr = (np.array(img, dtype=np.float32) / 256.0).clip(0, 255).astype(np.uint8)
+            return Image.fromarray(arr).convert("RGBA")
+        if img.mode in ("CMYK", "YCbCr"):
+            return img.convert("RGB").convert("RGBA")
+        return img.convert("RGBA")
 def render_3d_mesh(
     mesh,
     yaw_deg: float = 45.0,
@@ -695,10 +681,26 @@ def render_3d_mesh(
 ) -> Image.Image:
     """Render a 3D mesh from any yaw/pitch angle to a transparent RGBA PIL Image."""
     import numpy as np
-    from PySide6.QtCore import QByteArray, QBuffer, QIODevice, Qt, QPointF
-    from PySide6.QtGui import QImage, QPainter, QColor, QPolygonF, QBrush
 
-    # Center and scale to unit radius preserving exact submesh geometry
+    W, H = target_dimension, target_dimension
+    if not hasattr(mesh, "vertices") or len(mesh.vertices) == 0:
+        return Image.new("RGBA", (W, H), (0, 0, 0, 0))
+
+    # Convert textures or vertex colors to face colors so models are rendered with true colors
+    if hasattr(mesh, "visual") and mesh.visual is not None:
+        if getattr(mesh.visual, "kind", None) == "texture" or hasattr(mesh.visual, "uv"):
+            try:
+                mesh = mesh.copy()
+                mesh.visual = mesh.visual.to_color()
+            except Exception:
+                pass
+        elif hasattr(mesh.visual, "vertex_colors") and mesh.visual.vertex_colors is not None and len(mesh.visual.vertex_colors) > 0:
+            try:
+                mesh = mesh.copy()
+                mesh.visual = mesh.visual.to_color()
+            except Exception:
+                pass
+
     verts = mesh.vertices - mesh.centroid
     max_radius = float(np.max(np.linalg.norm(verts, axis=1)))
     if max_radius > 0:
@@ -720,21 +722,24 @@ def render_3d_mesh(
     R = Rx @ Ry
 
     v_rot = verts @ R.T
-    n_rot = mesh.face_normals @ R.T
+    scale = min(W, H) * 0.42
+    pts_2d = np.column_stack([v_rot[:, 0], -v_rot[:, 1]]) * scale + np.array([W / 2, H / 2])
+    # Point cloud fallback when no faces exist
+    if not hasattr(mesh, "faces") or len(mesh.faces) == 0:
+        result_img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(result_img)
+        pt_col = (*model_color, 220)
+        for pt in pts_2d:
+            draw.ellipse([pt[0] - 2, pt[1] - 2, pt[0] + 2, pt[1] + 2], fill=pt_col)
+        return result_img
 
-    # Painter's algorithm: sort faces by camera Z-depth
+    n_rot = mesh.face_normals @ R.T
     face_z = v_rot[mesh.faces].mean(axis=1)[:, 2]
     order = np.argsort(face_z)
 
-    # Gentle back-face culling to preserve thin vehicle panels and interior geometry
     visible_mask = n_rot[:, 2] > -0.55
     visible_order = [idx for idx in order if visible_mask[idx]]
 
-    W, H = target_dimension, target_dimension
-    scale = min(W, H) * 0.42
-    pts_2d = v_rot[:, :2] * scale + np.array([W / 2, H / 2])
-
-    # Directional Key Light + Ambient Light (two-sided diffuse so car interior/doors remain illuminated)
     light_dir = np.array([0.45, 0.65, 0.61])
     light_dir /= np.linalg.norm(light_dir)
     diffuse = np.abs(n_rot @ light_dir) * 0.72
@@ -747,13 +752,8 @@ def render_3d_mesh(
         and len(mesh.visual.face_colors) == len(mesh.faces)
     )
 
-    qimg = QImage(W, H, QImage.Format.Format_ARGB32_Premultiplied)
-    qimg.fill(Qt.GlobalColor.transparent)
-
-    painter = QPainter(qimg)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(Qt.PenStyle.NoPen)
-
+    result_img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(result_img)
     default_base = np.array(model_color, dtype=float)
 
     for idx in visible_order:
@@ -763,27 +763,11 @@ def render_3d_mesh(
         else:
             base_c = default_base
 
-        lit = np.clip(base_c * intensity[idx], 0, 255).astype(int)
-        painter.setBrush(QBrush(QColor(int(lit[0]), int(lit[1]), int(lit[2]), 255)))
+        lit = tuple(np.clip(base_c * intensity[idx], 0, 255).astype(int))
+        poly = [(pts_2d[v][0], pts_2d[v][1]) for v in face]
+        draw.polygon(poly, fill=lit)
 
-        poly = QPolygonF([
-            QPointF(pts_2d[face[0]][0], pts_2d[face[0]][1]),
-            QPointF(pts_2d[face[1]][0], pts_2d[face[1]][1]),
-            QPointF(pts_2d[face[2]][0], pts_2d[face[2]][1]),
-        ])
-        painter.drawPolygon(poly)
-
-    painter.end()
-
-    ba = QByteArray()
-    buf = QBuffer(ba)
-    buf.open(QIODevice.OpenModeFlag.WriteOnly)
-    qimg.save(buf, "PNG")
-    buf.close()
-
-    with Image.open(BytesIO(ba.data())) as pil_img:
-        pil_img.load()
-        return pil_img.convert("RGBA")
+    return result_img
 
 
 def extract_blend_thumbnail(path: Path) -> Image.Image | None:
@@ -877,15 +861,21 @@ def _load_3d(source_path: Path, config: PreviewConfig) -> Image.Image:
         if blender_bin:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 out_png = Path(tmp_dir) / "render.png"
-                script = f"""
-import bpy
-bpy.context.scene.render.film_transparent = True
-bpy.context.scene.render.image_settings.file_format = 'PNG'
-bpy.context.scene.render.image_settings.color_mode = 'RGBA'
-bpy.context.scene.render.filepath = r'{out_png}'
-bpy.ops.render.render(write_still=True)
-"""
-                subprocess.run([blender_bin, "-b", str(source_path), "--python-expr", script], capture_output=True, timeout=60)
+                script_py = Path(tmp_dir) / "render_script.py"
+                script_content = (
+                    "import bpy\n"
+                    "bpy.context.scene.render.film_transparent = True\n"
+                    "bpy.context.scene.render.image_settings.file_format = 'PNG'\n"
+                    "bpy.context.scene.render.image_settings.color_mode = 'RGBA'\n"
+                    f"bpy.context.scene.render.filepath = {repr(str(out_png))}\n"
+                    "bpy.ops.render.render(write_still=True)\n"
+                )
+                script_py.write_text(script_content, encoding="utf-8")
+                subprocess.run(
+                    [blender_bin, "-b", "-Y", str(source_path), "-P", str(script_py)],
+                    capture_output=True,
+                    timeout=60,
+                )
                 if out_png.exists():
                     with Image.open(out_png) as img:
                         img.load()
@@ -945,25 +935,110 @@ def preview_jpeg_bytes(
     config: PreviewConfig | None = None,
     text: str | None = None,
     max_dimension: int = 850,
-) -> bytes:
+) -> tuple[bytes, int, int]:
     source_path = Path(source_path)
     if config is None:
         config = PreviewConfig(text=text if text is not None else DEFAULT_TEXT)
 
     source = load_source_image(source_path, config)
-    w, h = source.size
-    if max(w, h) > max_dimension:
-        ratio = max_dimension / max(w, h)
-        tw = max(100, round(w * ratio))
-        th = max(100, round(h * ratio))
+    orig_w, orig_h = source.size
+    if max(orig_w, orig_h) > max_dimension:
+        ratio = max_dimension / max(orig_w, orig_h)
+        tw = max(1, round(orig_w * ratio))
+        th = max(1, round(orig_h * ratio))
         source = source.resize((tw, th), Image.Resampling.BILINEAR)
 
     preview = compose_preview(source, config)
 
     buffer = BytesIO()
     preview.save(buffer, format="JPEG", quality=85, subsampling=0)
-    return buffer.getvalue()
+    return buffer.getvalue(), orig_w, orig_h
 
+MAX_ZIP_MEMBERS = 2_000
+MAX_MEMBER_BYTES = 250 * 1024 * 1024       # 250 MB
+MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024   # 2 GB
+MAX_COMPRESSION_RATIO = 200
+MAX_PATH_LENGTH = 240
+MAX_PATH_DEPTH = 20
+
+
+def safe_extract_zip(zip_path: Path | str, target_dir: Path | str) -> list[Path]:
+    """
+    Safely extract a ZIP archive into target_dir with strict Zip-Slip protection,
+    resource limits, and path depth/length validation.
+    Returns list of extracted file Paths.
+    """
+    import zipfile
+
+    source = Path(zip_path)
+    root = Path(target_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+
+    extracted_files: list[Path] = []
+    total_extracted_bytes = 0
+    member_count = 0
+
+    with zipfile.ZipFile(source, "r") as zf:
+        infolist = zf.infolist()
+        if len(infolist) > MAX_ZIP_MEMBERS:
+            raise ValueError(f"Archive exceeds maximum member limit ({len(infolist)} > {MAX_ZIP_MEMBERS})")
+
+        for member in infolist:
+            member_count += 1
+            if member_count > MAX_ZIP_MEMBERS:
+                raise ValueError(f"Archive member count exceeded limit ({MAX_ZIP_MEMBERS})")
+
+            if member.file_size > MAX_MEMBER_BYTES:
+                raise ValueError(
+                    f"Member '{member.filename}' uncompressed size {member.file_size} exceeds limit {MAX_MEMBER_BYTES}"
+                )
+
+            if member.compress_size > 0:
+                ratio = member.file_size / member.compress_size
+                if ratio > MAX_COMPRESSION_RATIO and member.file_size > 1_000_000:
+                    raise ValueError(f"Suspicious compression ratio ({ratio:.1f}) in '{member.filename}'")
+
+            parts = Path(member.filename).parts
+            if member.filename.startswith(("/", "\\")) or ".." in parts:
+                raise ValueError(f"Archive member escapes extraction root (Zip-Slip attempt): {member.filename}")
+
+            if (
+                member.is_dir()
+                or any(p.startswith(".") and p not in (".", "..") or p == "__MACOSX" for p in parts)
+                or member.filename.lower().endswith((".ds_store", "thumbs.db", "desktop.ini"))
+            ):
+                continue
+
+            if len(member.filename) > MAX_PATH_LENGTH:
+                raise ValueError(f"Path length exceeds {MAX_PATH_LENGTH} characters: {member.filename}")
+            if len(parts) > MAX_PATH_DEPTH:
+                raise ValueError(f"Path depth exceeds {MAX_PATH_DEPTH} levels: {member.filename}")
+
+            target = (root / member.filename).resolve()
+            try:
+                target.relative_to(root)
+            except ValueError as exc:
+                raise ValueError(f"Archive member escapes extraction root (Zip-Slip attempt): {member.filename}") from exc
+
+            bytes_written = 0
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(member) as src, open(target, "wb") as dst:
+                while True:
+                    chunk = src.read(65536)
+                    if not chunk:
+                        break
+                    bytes_written += len(chunk)
+                    if bytes_written > MAX_MEMBER_BYTES:
+                        raise ValueError(f"Member '{member.filename}' exceeded size limit during extraction")
+                    dst.write(chunk)
+
+            total_extracted_bytes += bytes_written
+            if total_extracted_bytes > MAX_TOTAL_BYTES:
+                raise ValueError(f"Total archive size exceeds limit of {MAX_TOTAL_BYTES} bytes")
+
+            extracted_files.append(target)
+
+    return extracted_files
 def process_folder(
     input_folder: Path,
     output_folder: Path,
@@ -971,11 +1046,16 @@ def process_folder(
     progress: Callable[[int, int, str], None],
     is_cancelled: Callable[[], bool],
 ) -> tuple[int, int, list[str]]:
-    files = sorted(
-        path for path in input_folder.iterdir()
-        if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
+    raw_files = sorted(
+        p for p in input_folder.rglob("*.*")
+        if p.is_file()
+        and p.suffix.lower() in SUPPORTED_EXTENSIONS
+        and not any(
+            part.startswith(".") and part not in (".", "..") or part == "__MACOSX"
+            for part in p.relative_to(input_folder).parts
+        )
     )
-    if not files:
+    if not raw_files:
         ext_list = ", ".join(SUPPORTED_EXTENSIONS)
         raise ValueError(f"No supported images ({ext_list}) found in the input folder")
 
@@ -983,72 +1063,83 @@ def process_folder(
     success = 0
     failed = 0
     errors: list[str] = []
-    total = len(files)
 
-    for index, source_path in enumerate(files, start=1):
-        if is_cancelled():
-            break
-        if source_path.suffix.lower() == ".zip":
-            import zipfile
-            import tempfile
-            import shutil
+    work_items: list[tuple[Path, str]] = []
+    allocated_names: set[str] = set()
+    temp_dirs: list[Path] = []
 
-            zip_tmp = Path(tempfile.mkdtemp(prefix="previewgen_zip_"))
-            try:
-                with zipfile.ZipFile(source_path, "r") as zf:
-                    for member in zf.infolist():
-                        parts = Path(member.filename).parts
-                        if any(part.startswith(".") or part == "__MACOSX" for part in parts):
-                            continue
-                        if member.is_dir() or member.filename.lower().endswith((".ds_store", "thumbs.db", "desktop.ini")):
-                            continue
-                        target = (zip_tmp / member.filename).resolve()
-                        if not str(target).startswith(str(zip_tmp.resolve())):
-                            continue
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        with zf.open(member) as src, open(target, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
+    try:
+        for src in raw_files:
+            if src.suffix.lower() == ".zip":
+                import tempfile
+                zip_tmp = Path(tempfile.mkdtemp(prefix="previewgen_batch_zip_"))
+                temp_dirs.append(zip_tmp)
+                try:
+                    safe_extract_zip(src, zip_tmp)
+                    nested_zips = [nz for nz in zip_tmp.rglob("*.zip") if nz.is_file()]
+                    for nz in nested_zips:
+                        try:
+                            safe_extract_zip(nz, nz.parent / nz.stem)
+                        except Exception:
+                            pass
 
-                inner_files = sorted(
-                    p for p in zip_tmp.rglob("*.*")
-                    if p.is_file()
-                    and p.suffix.lower() in SUPPORTED_EXTENSIONS
-                    and p.suffix.lower() != ".zip"
-                    and not any(part.startswith(".") or part == "__MACOSX" for part in p.parts)
-                )
-                if not inner_files:
-                    failed += 1
-                    errors.append(f"{source_path.name}: No supported files found inside archive")
-                for inner in inner_files:
-                    if is_cancelled():
-                        break
-                    try:
-                        rel_parts = inner.relative_to(zip_tmp).parent.parts
-                        if rel_parts:
-                            folder_slug = "_".join(rel_parts)
-                            out_name = f"{source_path.stem}_{folder_slug}_{inner.stem}.jpg"
-                        else:
-                            out_name = f"{source_path.stem}_{inner.stem}.jpg"
-                        generate_file(inner, output_folder / out_name, config)
-                        success += 1
-                        status = f"Created {out_name}"
-                    except Exception as exc:
+                    inner_files = sorted(
+                        p for p in zip_tmp.rglob("*.*")
+                        if p.is_file()
+                        and p.suffix.lower() in SUPPORTED_EXTENSIONS
+                        and p.suffix.lower() != ".zip"
+                        and not any(
+                            part.startswith(".") and part not in (".", "..") or part == "__MACOSX"
+                            for part in p.relative_to(zip_tmp).parts
+                        )
+                    )
+                    if not inner_files:
                         failed += 1
-                        errors.append(f"{source_path.name} -> {inner.name}: {exc}")
-            finally:
-                shutil.rmtree(zip_tmp, ignore_errors=True)
-        else:
+                        errors.append(f"{src.name}: No supported assets inside archive")
+                        continue
+
+                    for inner in inner_files:
+                        rel_parts = inner.relative_to(zip_tmp).parent.parts
+                        slug = f"_{'_'.join(rel_parts)}" if rel_parts else ""
+                        candidate_stem = f"{src.stem}{slug}_{inner.stem}"
+                        out_name = f"{candidate_stem}.jpg"
+                        if out_name in allocated_names:
+                            out_name = f"{candidate_stem}_{inner.suffix.lstrip('.')}.jpg"
+                        allocated_names.add(out_name)
+                        work_items.append((inner, out_name))
+                except Exception as exc:
+                    failed += 1
+                    errors.append(f"{src.name}: {exc}")
+            else:
+                rel_parts = src.relative_to(input_folder).parent.parts
+                prefix = f"{'_'.join(rel_parts)}_" if rel_parts else ""
+                candidate_stem = f"{prefix}{src.stem}"
+                out_name = f"{candidate_stem}.jpg"
+                if out_name in allocated_names:
+                    out_name = f"{candidate_stem}_{src.suffix.lstrip('.')}.jpg"
+                allocated_names.add(out_name)
+                work_items.append((src, out_name))
+
+        total = max(1, len(work_items) + failed)
+        completed = failed
+
+        for item_path, out_name in work_items:
+            if is_cancelled():
+                break
             try:
-                generate_file(
-                    source_path,
-                    output_folder / f"{source_path.stem}.jpg",
-                    config,
-                )
+                generate_file(item_path, output_folder / out_name, config)
                 success += 1
-                status = f"Created {source_path.stem}.jpg"
+                status = f"Created {out_name}"
             except Exception as exc:
                 failed += 1
-                status = f"Failed {source_path.name}"
-                errors.append(f"{source_path.name}: {exc}")
+                status = f"Failed {item_path.name}"
+                errors.append(f"{item_path.name}: {exc}")
+
+            completed += 1
+            progress(completed, total, status)
+
+    finally:
+        for t in temp_dirs:
+            shutil.rmtree(t, ignore_errors=True)
 
     return success, failed, errors

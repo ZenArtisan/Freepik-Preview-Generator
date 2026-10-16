@@ -12,6 +12,8 @@ ENV/
 dist/
 build/
 *.egg
+*.b64.txt
+*.tar.gz
 # Node
 node_modules/
 */node_modules/

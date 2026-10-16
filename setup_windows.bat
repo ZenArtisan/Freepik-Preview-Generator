@@ -6,9 +6,19 @@ call ".venv\Scripts\activate.bat"
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 if errorlevel 1 (
-  echo Setup failed.
+  echo Setup failed on Python dependencies.
   pause
   exit /b 1
+)
+
+if not exist "frontend\dist\index.html" (
+  if exist "frontend\package.json" (
+    echo Building React frontend studio...
+    cd frontend
+    call npm ci
+    call npm run build
+    cd ..
+  )
 )
 echo.
 echo Setup complete. Double-click run_app.bat.

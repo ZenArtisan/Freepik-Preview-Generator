@@ -4,8 +4,8 @@
 ; ==============================================================================
 
 #define MyAppName "PreviewGen"
-#define MyAppVersion "1.5.0"
-#define MyAppPublisher "Mustaqeem66"
+#define MyAppVersion "2.0.2"
+#define MyAppPublisher "ZenArtisan"
 #define MyAppURL "https://github.com/Mustaqeem66/Freepik-Preview-Generator"
 #define MyAppExeName "PreviewGen.exe"
 
@@ -21,8 +21,11 @@ AppUpdatesURL={#MyAppURL}
 ; User-level installation (installs to %LOCALAPPDATA%\Programs without requiring admin privileges)
 PrivilegesRequired=lowest
 DefaultDirName={localappdata}\Programs\{#MyAppName}
+DisableDirPage=no
+UsePreviousAppDir=yes
+AllowNoIcons=yes
 DefaultGroupName={#MyAppName}
-DisableProgramGroupPage=yes
+DisableProgramGroupPage=no
 LicenseFile=LICENSE
 SetupIconFile=app.ico
 UninstallDisplayIcon={app}\app.ico
@@ -36,7 +39,7 @@ OutputBaseFilename=PreviewGen-Setup
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
 Source: "dist\PreviewGen\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

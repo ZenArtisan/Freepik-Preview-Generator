@@ -9,11 +9,12 @@ call ".venv\Scripts\activate.bat"
 if exist "frontend\package.json" (
   echo Building React + Framer frontend...
   cd frontend
+  call npm ci
   call npm run build
   cd ..
 )
 python -m pip install --upgrade pyinstaller
-pyinstaller --noconsole --name PreviewGen --icon=app.ico --add-data "app.ico;." --add-data "frontend\dist;frontend\dist" --collect-all psd_tools --collect-all trimesh --collect-all webview --collect-all ezdxf --collect-all olefile --collect-all cascadio --hidden-import PySide6.QtSvg app.py --clean -y
+pyinstaller --noconsole --name PreviewGen --icon=app.ico --add-data "app.ico;." --add-data "frontend\dist;frontend\dist" --collect-all psd_tools --collect-all trimesh --collect-all webview --collect-all ezdxf --collect-all olefile --collect-all cascadio --collect-all resvg_py --collect-all matplotlib app.py --clean -y
 if errorlevel 1 (
   echo Build failed. Read the error above.
   pause

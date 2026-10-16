@@ -116,13 +116,12 @@ echo Uninstalling PreviewGen...
 taskkill /F /IM $AppName.exe 2>nul
 del /F /Q "$Desktop\$AppName.lnk" 2>nul
 rmdir /S /Q "$StartMenu" 2>nul
-rmdir /S /Q "$InstallDir" 2>nul
 echo PreviewGen has been uninstalled.
-pause
+timeout /t 2 /nobreak >nul
+cd /d "%TEMP%"
+rmdir /s /q "$InstallDir"
 "@
 $UninstallScript | Out-File -FilePath "$InstallDir\uninstall.bat" -Encoding ASCII
-
-Write-Host "      Desktop shortcut created: $Desktop\$AppName.lnk" -ForegroundColor Green
 Write-Host "      Start Menu shortcut created." -ForegroundColor Green
 
 # 5. Launch Application

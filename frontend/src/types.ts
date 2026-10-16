@@ -32,10 +32,11 @@ export interface PreviewState {
 }
 
 export interface RenderPreviewResult {
-  dataUrl: string;
-  width: number;
-  height: number;
-  name: string;
+  dataUrl?: string;
+  width?: number;
+  height?: number;
+  name?: string;
+  error?: string;
 }
 
 export interface ScanFolderResult {

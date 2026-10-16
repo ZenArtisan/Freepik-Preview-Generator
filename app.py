@@ -30,46 +30,56 @@ from processor import (
 SETTINGS_FILE = Path.home() / ".previewgen_settings.json"
 
 
-def ensure_desktop_shortcut() -> None:
-    """Ensure an official desktop shortcut exists across Windows, macOS, and Linux."""
-    try:
-        if sys.platform == "win32":
-            exe = sys.executable if getattr(sys, "frozen", False) else str(Path(__file__).resolve().parent / "dist" / "PreviewGen" / "PreviewGen.exe")
-            if not Path(exe).is_file():
-                return
-            ico = str(Path(exe).parent / "app.ico")
-            if not Path(ico).is_file():
-                ico = str(Path(__file__).resolve().parent / "app.ico")
-            ps_script = f"""
-$wsh = New-Object -ComObject WScript.Shell
-$desktop = [Environment]::GetFolderPath('Desktop')
-if ($desktop -and (Test-Path $desktop)) {{
-    $lnk = Join-Path $desktop "PreviewGen.lnk"
-    if (-not (Test-Path $lnk)) {{
-        $s = $wsh.CreateShortcut($lnk)
-        $s.TargetPath = '{exe}'
-        $s.WorkingDirectory = '{Path(exe).parent}'
-        if (Test-Path '{ico}') {{ $s.IconLocation = '{ico},0' }}
-        $s.Description = 'PreviewGen - Transparent PNG to JPG Preview Generator'
-        $s.Save()
-    }}
-}}
-"""
-            subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_script], creationflags=0x08000000)
-        elif sys.platform == "darwin":
-            desktop = Path.home() / "Desktop" / "PreviewGen"
-            app_path = Path("/Applications/PreviewGen.app")
-            if desktop.parent.exists() and not desktop.exists() and app_path.exists():
-                desktop.symlink_to(app_path)
-        elif sys.platform.startswith("linux"):
-            desktop = Path.home() / "Desktop" / "PreviewGen.desktop"
-            app_entry = Path.home() / ".local/share/applications/previewgen.desktop"
-            if desktop.parent.exists() and not desktop.exists() and app_entry.exists():
-                shutil.copyfile(app_entry, desktop)
-                desktop.chmod(0o755)
-    except Exception:
-        pass
+import logging
+from logging.handlers import RotatingFileHandler
+import platform
 
+
+def get_log_directory() -> Path:
+    if sys.platform == "win32":
+        return Path.home() / "AppData" / "Local" / "PreviewGen" / "logs"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Logs" / "PreviewGen"
+    return Path.home() / ".local" / "state" / "previewgen"
+
+
+def configure_logging() -> Path:
+    log_dir = get_log_directory()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "previewgen.log"
+    handler = RotatingFileHandler(log_file, maxBytes=2_000_000, backupCount=3, encoding="utf-8")
+    logging.basicConfig(
+        level=logging.INFO,
+        handlers=[handler, logging.StreamHandler(sys.stdout)],
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+    logging.info(
+        "Starting PreviewGen platform=%s python=%s frozen=%s",
+        platform.platform(),
+        sys.version,
+        getattr(sys, "frozen", False),
+    )
+    return log_file
+
+
+def show_fatal_error(title: str, message: str) -> None:
+    logging.critical("%s: %s", title, message)
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, message, title, 0x10)
+            return
+        except Exception:
+            pass
+    elif sys.platform == "darwin":
+        try:
+            import subprocess
+            cmd = f'display dialog "{message}" with title "{title}" buttons {{"OK"}} default button "OK" with icon stop'
+            subprocess.run(["osascript", "-e", cmd], check=False)
+            return
+        except Exception:
+            pass
+    sys.stderr.write(f"\n[FATAL ERROR] {title}\n{message}\n\n")
 
 class DesktopApi:
     def __init__(self) -> None:
@@ -168,39 +178,42 @@ class DesktopApi:
             self.session_zip_dir = None
 
         direct_files = [
-            f for f in p.iterdir()
-            if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS and f.suffix.lower() != ".zip"
+            f for f in p.rglob("*.*")
+            if f.is_file()
+            and f.suffix.lower() in SUPPORTED_EXTENSIONS
+            and f.suffix.lower() != ".zip"
+            and not any(part.startswith(".") and part not in (".", "..") or part == "__MACOSX" for part in f.relative_to(p).parts)
         ]
-        zip_files = [f for f in p.iterdir() if f.is_file() and f.suffix.lower() == ".zip"]
+        zip_files = [
+            f for f in p.rglob("*.zip")
+            if f.is_file()
+            and not any(part.startswith(".") and part not in (".", "..") or part == "__MACOSX" for part in f.relative_to(p).parts)
+        ]
 
         extracted_files: list[Path] = []
         if zip_files:
-            import zipfile
+            from processor import safe_extract_zip
             self.session_zip_dir = Path(tempfile.mkdtemp(prefix="previewgen_react_zip_"))
             for z in zip_files:
+                sub_target = self.session_zip_dir / z.stem
                 try:
-                    with zipfile.ZipFile(z, "r") as zf:
-                        for member in zf.infolist():
-                            parts = Path(member.filename).parts
-                            if any(part.startswith(".") or part == "__MACOSX" for part in parts):
-                                continue
-                            if member.is_dir() or member.filename.lower().endswith((".ds_store", "thumbs.db", "desktop.ini")):
-                                continue
-                            t = (self.session_zip_dir / f"{z.stem}_{member.filename}").resolve()
-                            if not str(t).startswith(str(self.session_zip_dir.resolve())):
-                                continue
-                            t.parent.mkdir(parents=True, exist_ok=True)
-                            with zf.open(member) as src, open(t, "wb") as dst:
-                                shutil.copyfileobj(src, dst)
-                except Exception:
-                    pass
+                    safe_extract_zip(z, sub_target)
+                    # Check for nested zips and extract them
+                    nested_zips = [nz for nz in sub_target.rglob("*.zip") if nz.is_file()]
+                    for nz in nested_zips:
+                        try:
+                            safe_extract_zip(nz, nz.parent / nz.stem)
+                        except Exception:
+                            pass
+                except Exception as exc:
+                    logging.warning("Could not safely extract archive %s: %s", z.name, exc)
 
             extracted_files = [
                 f for f in self.session_zip_dir.rglob("*.*")
                 if f.is_file()
                 and f.suffix.lower() in SUPPORTED_EXTENSIONS
                 and f.suffix.lower() != ".zip"
-                and not any(part.startswith(".") or part == "__MACOSX" for part in f.parts)
+                and not any(part.startswith(".") and part not in (".", "..") or part == "__MACOSX" for part in f.relative_to(self.session_zip_dir).parts)
             ]
 
         all_paths = sorted(direct_files + extracted_files)
@@ -211,7 +224,7 @@ class DesktopApi:
                 "name": f.name,
                 "path": str(f.resolve()),
                 "ext": ext_clean,
-                "is_3d": f.suffix.lower() in SUPPORTED_3D_EXTENSIONS or f.suffix.lower() in (".step", ".stp", ".iges", ".igs"),
+                "is_3d": (f.suffix.lower() in SUPPORTED_3D_EXTENSIONS and f.suffix.lower() != ".blend") or f.suffix.lower() in (".step", ".stp", ".iges", ".igs"),
             })
 
         return {"files": files_payload, "total": len(files_payload)}
@@ -253,28 +266,33 @@ class DesktopApi:
         )
 
         try:
-            jpeg_bytes = preview_jpeg_bytes(source_path, cfg, max_dimension=850)
+            jpeg_bytes, orig_w, orig_h = preview_jpeg_bytes(source_path, cfg, max_dimension=850)
             b64 = base64.b64encode(jpeg_bytes).decode("ascii")
-            from PIL import Image
-            from io import BytesIO
-            with Image.open(BytesIO(jpeg_bytes)) as img:
-                w, h = img.size
             return {
                 "dataUrl": f"data:image/jpeg;base64,{b64}",
-                "width": w,
-                "height": h,
+                "width": orig_w,
+                "height": orig_h,
             }
         except Exception as exc:
             return {"error": str(exc)}
 
     def start_batch(self, input_folder: str, output_folder: str, config_dict: dict[str, Any]) -> None:
         """Start asynchronous batch processing on a dedicated worker thread."""
+        if self.batch_thread and self.batch_thread.is_alive():
+            logging.warning("Batch processing already active; ignoring duplicate request.")
+            return
+
         self.cancel_event.clear()
 
         def hex_to_rgb(h: str) -> tuple[int, int, int]:
-            h = h.lstrip("#")
-            if len(h) == 6:
-                return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+            try:
+                h = h.lstrip("#")
+                if len(h) == 3:
+                    h = "".join(c * 2 for c in h)
+                if len(h) == 6:
+                    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+            except Exception:
+                pass
             return (255, 255, 255)
 
         cfg = PreviewConfig(
@@ -303,8 +321,8 @@ class DesktopApi:
         def run_worker() -> None:
             def on_progress(cur: int, tot: int, msg: str) -> None:
                 if self.window:
-                    clean_msg = msg.replace("'", "\\'")
-                    self.window.evaluate_js(f"window.__onBatchProgress({cur}, {tot}, '{clean_msg}')")
+                    msg_json = json.dumps(str(msg))
+                    self.window.evaluate_js(f"window.__onBatchProgress({int(cur)}, {int(tot)}, {msg_json})")
 
             try:
                 success, failed, errors = process_folder(
@@ -315,16 +333,17 @@ class DesktopApi:
                     self.cancel_event.is_set,
                 )
                 if self.window:
-                    err_json = json.dumps(errors[:8])
-                    cancelled = "true" if self.cancel_event.is_set() else "false"
-                    self.window.evaluate_js(f"window.__onBatchFinished({success}, {failed}, {err_json}, {cancelled})")
+                    err_json = json.dumps(errors[:20])
+                    cancelled_str = "true" if self.cancel_event.is_set() else "false"
+                    self.window.evaluate_js(f"window.__onBatchFinished({success}, {failed}, {err_json}, {cancelled_str})")
             except Exception as e:
+                logging.exception("Batch execution failed")
                 if self.window:
-                    self.window.evaluate_js(f"window.__onBatchFinished(0, 1, ['{str(e)}'], false)")
+                    err_json = json.dumps([str(e)])
+                    self.window.evaluate_js(f"window.__onBatchFinished(0, 1, {err_json}, false)")
 
         self.batch_thread = threading.Thread(target=run_worker, daemon=True)
         self.batch_thread.start()
-
     def cancel_batch(self) -> None:
         self.cancel_event.set()
 
@@ -334,6 +353,10 @@ class DesktopApi:
 
 
 def main() -> int:
+    log_file = configure_logging()
+    is_frozen = getattr(sys, "frozen", False)
+    dev_mode = os.environ.get("PREVIEWGEN_DEV") == "1"
+
     if sys.platform == "win32":
         try:
             import ctypes
@@ -341,27 +364,66 @@ def main() -> int:
         except Exception:
             pass
 
-    ensure_desktop_shortcut()
-
-    # Determine HTML entry path (handles dev, production build, and frozen bundle)
-    if getattr(sys, "frozen", False):
-        base_dir = Path(getattr(sys, "_MEIPASS", sys.executable)).resolve()
+    # Determine HTML entry path (handles frozen bundle, source dev, and production dist)
+    if is_frozen:
+        base_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent)).resolve()
     else:
         base_dir = Path(__file__).resolve().parent
 
-    html_dist = None
-    for candidate in (
+    candidates = [
         base_dir / "frontend" / "dist" / "index.html",
         base_dir / "dist" / "index.html",
         base_dir / "index.html",
-    ):
+    ]
+    if is_frozen:
+        candidates.insert(0, Path(sys.executable).resolve().parent / "frontend" / "dist" / "index.html")
+        candidates.insert(1, Path(sys.executable).resolve().parent / "dist" / "index.html")
+
+    html_dist: Path | None = None
+    for candidate in candidates:
         if candidate.is_file():
             html_dist = candidate
             break
+
+    target_url: str | None = None
+    if html_dist and html_dist.is_file():
+        target_url = html_dist.resolve().as_uri()
+        logging.info("Loaded frontend bundle from %s", html_dist)
+    elif not is_frozen and dev_mode:
+        import urllib.request
+        try:
+            urllib.request.urlopen("http://localhost:5173", timeout=0.5)
+            target_url = "http://localhost:5173"
+            logging.info("Development mode active: bound to Vite server http://localhost:5173")
+        except Exception:
+            target_url = None
+
+    if "--smoke-test" in sys.argv or "--version" in sys.argv:
+        from processor import PreviewConfig, compose_preview, SUPPORTED_EXTENSIONS
+        from PIL import Image
+        assert html_dist is not None and html_dist.is_file(), f"Frontend bundle missing: {candidates}"
+        test_img = Image.new("RGBA", (100, 100), (99, 102, 241, 255))
+        test_preview = compose_preview(test_img, PreviewConfig())
+        assert test_preview.size == (100, 100)
+        api = DesktopApi()
+        api.cleanup()
+        print(f"[STARTUP-TEST] OK: PreviewGen initialized successfully. Bundle: {html_dist}, Formats: {len(SUPPORTED_EXTENSIONS)}")
+        return 0
+
+    if not target_url:
+        err_msg = (
+            "PreviewGen could not locate its required frontend bundle.\n\n"
+            f"Search path: {base_dir}\n"
+            "Expected file: frontend/dist/index.html\n\n"
+            "Please reinstall PreviewGen or run 'npm run build' in the frontend directory."
+        )
+        show_fatal_error("PreviewGen - Missing Assets", err_msg)
+        raise RuntimeError(err_msg)
+
     api = DesktopApi()
     window = webview.create_window(
         title="PreviewGen",
-        url=str(html_dist) if html_dist.is_file() else "http://localhost:5173",
+        url=target_url,
         js_api=api,
         width=1340,
         height=900,
@@ -372,6 +434,9 @@ def main() -> int:
 
     try:
         webview.start(debug=False)
+    except Exception as exc:
+        show_fatal_error("PreviewGen - GUI Failure", f"Failed to initialize webview window: {exc}")
+        raise
     finally:
         api.cleanup()
 

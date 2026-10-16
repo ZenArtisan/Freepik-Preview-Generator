@@ -19,7 +19,7 @@ import { FileInfo, PreviewState } from "./types";
 
 // Apple-calibrated spring physics
 const springTransition = {
-  type: "spring",
+  type: "spring" as const,
   stiffness: 460,
   damping: 32,
   mass: 0.8,
@@ -55,7 +55,7 @@ export default function App() {
   const [state, setState] = useState<PreviewState>(defaultState);
   const [fileList, setFileList] = useState<FileInfo[]>([]);
   const [currentIdx, setCurrentIdx] = useState<number>(0);
-  const [previewDataUrl, setPreviewDataUrl] = useState<string>("");
+  const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<{ width: number; height: number; name: string }>({
     width: 0,
     height: 0,
@@ -64,8 +64,7 @@ export default function App() {
   const [, setIsLoadingPreview] = useState<boolean>(false);
   const [fitToView, setFitToView] = useState<boolean>(true);
   const [is3DDragging, setIs3DDragging] = useState<boolean>(false);
-
-  // Active preset identifiers for sliding pills
+  const [renderError, setRenderError] = useState<string | null>(null);
   const [active3DPreset, setActive3DPreset] = useState<string>("Isometric 3/4");
 
   // Batch progress
@@ -76,16 +75,18 @@ export default function App() {
     message: "Ready to process",
   });
   const [stats, setStats] = useState<{ success: number; failed: number }>({ success: 0, failed: 0 });
+  const [batchErrors, setBatchErrors] = useState<string[]>([]);
 
-  // 3D drag ref
+  // 3D drag ref & settings loaded gate
   const dragStartPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const isLoadedRef = useRef<boolean>(false);
 
   // Theme application
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", state.theme);
   }, [state.theme]);
 
-  // Initial Load from Python Backend
+  // Initial Load from Python Backend with pywebviewready listener
   useEffect(() => {
     const init = async () => {
       const api = window.pywebview?.api;
@@ -100,6 +101,8 @@ export default function App() {
           }
         } catch (e) {
           console.error("Failed to load initial state:", e);
+        } finally {
+          isLoadedRef.current = true;
         }
       }
     };
@@ -107,56 +110,84 @@ export default function App() {
     // Register batch progress listeners from Python
     window.__onBatchProgress = (current: number, total: number, message: string) => {
       setProgress({ current, total, message });
-      setStats((prev) => ({ ...prev, success: current }));
     };
 
-    window.__onBatchFinished = (success: number, failed: number, _errors: string[], cancelled: boolean) => {
+    window.__onBatchFinished = (success: number, failed: number, errors: string[], cancelled: boolean) => {
       setIsProcessing(false);
       setProgress({
         current: success + failed,
         total: success + failed,
-        message: cancelled ? "Processing cancelled." : `Completed! ${success} previews saved.`,
+        message: cancelled
+          ? "Processing cancelled."
+          : failed > 0
+          ? `Completed with issues: ${success} succeeded, ${failed} failed.`
+          : `Completed! ${success} previews saved.`,
       });
       setStats({ success, failed });
+      if (errors && errors.length > 0) {
+        setBatchErrors(errors);
+      }
     };
 
-    init();
+    if (window.pywebview?.api) {
+      init();
+    } else {
+      window.addEventListener("pywebviewready", init, { once: true });
+    }
   }, []);
 
-  // Save settings whenever state changes
+  // Save settings whenever state changes (gated on initial state having loaded)
   useEffect(() => {
+    if (!isLoadedRef.current) return;
     const api = window.pywebview?.api;
     if (api) {
       api.save_settings(state).catch(() => {});
     }
   }, [state]);
-
   // Debounced live preview refresh
   const activeFile = fileList[currentIdx];
   const isCurrent3D = activeFile?.is_3d || false;
 
   useEffect(() => {
-    if (!activeFile) return;
+    if (!activeFile) {
+      setPreviewDataUrl(null);
+      setPreviewMeta({ width: 0, height: 0, name: "" });
+      setRenderError(null);
+      return;
+    }
 
+    let cancelled = false;
     const timer = setTimeout(async () => {
       setIsLoadingPreview(true);
       try {
         const api = window.pywebview?.api;
         if (api) {
           const res = await api.render_preview(activeFile.path, state);
+          if (cancelled) return;
           if (res?.dataUrl) {
             setPreviewDataUrl(res.dataUrl);
             setPreviewMeta({ width: res.width || 0, height: res.height || 0, name: activeFile.name });
+            setRenderError(null);
+          } else if (res?.error) {
+            setRenderError(res.error);
           }
         }
-      } catch (err) {
-        console.error("Preview render failed:", err);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          console.error("Preview render failed:", err);
+          setRenderError(err instanceof Error ? err.message : "Failed to render preview");
+        }
       } finally {
-        setIsLoadingPreview(false);
+        if (!cancelled) {
+          setIsLoadingPreview(false);
+        }
       }
     }, 40);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [activeFile, state]);
 
   // Folder scanning
@@ -169,6 +200,11 @@ export default function App() {
         if (res?.files) {
           setFileList(res.files);
           setCurrentIdx(0);
+          if (res.files.length === 0) {
+            setPreviewDataUrl(null);
+            setPreviewMeta({ width: 0, height: 0, name: "" });
+            setRenderError(null);
+          }
         }
       }
     } catch (e) {
@@ -266,9 +302,17 @@ export default function App() {
     }
   };
 
-  // Keyboard navigation
+  // Keyboard navigation (B-13: do not hijack arrow keys when typing inside inputs)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable) {
+          return;
+        }
+      }
+      if (fileList.length <= 1) return;
       if (e.key === "ArrowLeft") {
         setCurrentIdx((i) => Math.max(0, i - 1));
       } else if (e.key === "ArrowRight") {
@@ -279,7 +323,14 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [fileList]);
 
-  // 3D Canvas Dragging
+  // 3D Canvas Dragging (B-13: release drag even when mouseup fires outside viewport)
+  useEffect(() => {
+    if (!is3DDragging) return;
+    const onGlobalMouseUp = () => setIs3DDragging(false);
+    window.addEventListener("mouseup", onGlobalMouseUp);
+    return () => window.removeEventListener("mouseup", onGlobalMouseUp);
+  }, [is3DDragging]);
+
   const handleMouseDown3D = (e: React.MouseEvent) => {
     if (!isCurrent3D) return;
     setIs3DDragging(true);
@@ -294,7 +345,7 @@ export default function App() {
 
     setState((prev) => ({
       ...prev,
-      yaw: (prev.yaw + Math.round(dx * 0.7)) % 360,
+      yaw: (((prev.yaw + Math.round(dx * 0.7)) % 360) + 360) % 360,
       pitch: Math.max(-85, Math.min(85, prev.pitch - Math.round(dy * 0.7))),
     }));
     setActive3DPreset("Custom");
@@ -778,6 +829,13 @@ export default function App() {
             </div>
 
             <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>{progress.message}</div>
+            {batchErrors.length > 0 && (
+              <div style={{ marginTop: "6px", maxHeight: "80px", overflowY: "auto", fontSize: "11px", color: "#EF4444", background: "rgba(239, 68, 68, 0.08)", padding: "6px 10px", borderRadius: "6px" }}>
+                {batchErrors.slice(0, 5).map((err, i) => (
+                  <div key={i} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>• {err}</div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -825,10 +883,23 @@ export default function App() {
                 onClick={() => {
                   if (activeFile && window.pywebview?.api) {
                     setIsLoadingPreview(true);
-                    window.pywebview.api.render_preview(activeFile.path, state).then((res) => {
-                      if (res?.dataUrl) setPreviewDataUrl(res.dataUrl);
-                      setIsLoadingPreview(false);
-                    });
+                    window.pywebview.api
+                      .render_preview(activeFile.path, state)
+                      .then((res) => {
+                        if (res?.dataUrl) {
+                          setPreviewDataUrl(res.dataUrl);
+                          setPreviewMeta({ width: res.width || 0, height: res.height || 0, name: activeFile.name });
+                          setRenderError(null);
+                        } else if (res?.error) {
+                          setRenderError(res.error);
+                        }
+                      })
+                      .catch((err: unknown) => {
+                        setRenderError(err instanceof Error ? err.message : "Refresh failed");
+                      })
+                      .finally(() => {
+                        setIsLoadingPreview(false);
+                      });
                   }
                 }}
                 style={secondaryBtnStyle}
@@ -960,7 +1031,12 @@ export default function App() {
               cursor: isCurrent3D ? (is3DDragging ? "grabbing" : "grab") : "default",
             }}
           >
-            {previewDataUrl ? (
+            {renderError ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", color: "#EF4444", padding: "20px", textAlign: "center", maxWidth: "420px" }}>
+                <span style={{ fontSize: "13px", fontWeight: 700 }}>Unable to Render Preview</span>
+                <span style={{ fontSize: "11px", opacity: 0.85, wordBreak: "break-word" }}>{renderError}</span>
+              </div>
+            ) : previewDataUrl ? (
               <img
                 src={previewDataUrl}
                 alt="Live Preview"

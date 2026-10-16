@@ -150,7 +150,7 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
 ### 1. Multi-Format 2D Ingestion (PNG, WebP, SVG, TIFF, PSD)
 - **PNG**: Pixel-perfect alpha compositing with zero canvas crop or distortion.
 - **WebP**: Full support for modern web & mobile transparent assets, with animated WebP keyframe fallback.
-- **SVG Vector**: Smooth vector rasterization at crisp high-res 4K target DPI using native QtSvg.
+- **SVG Vector**: Smooth vector rasterization with exact dimension preservation using high-performance `resvg`.
 - **TIFF / TIF**: High-bit depth print cutouts with automatic CMYK $\to$ sRGB color profile transform.
 - **PSD (Photoshop)**: Headless composite layer extraction directly from Photoshop binaries via `psd-tools` — no Adobe software required!
 
@@ -240,7 +240,7 @@ pip install -r requirements.txt
 # Run Desktop Studio (pywebview + React + Framer Motion)
 python app.py
 
-# Or run classic native Qt interface
+# Or run with Python launcher
 python main.py
 ```
 
