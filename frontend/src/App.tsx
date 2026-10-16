@@ -151,15 +151,19 @@ export default function App() {
     };
   }, []);
 
-  // Save settings whenever state changes (gated on initial state having loaded)
+  // Save settings whenever state changes (debounced by 800ms to eliminate IPC traffic storms)
   useEffect(() => {
     if (!isLoadedRef.current) return;
-    const api = window.pywebview?.api;
-    if (api) {
-      api.save_settings(state).catch(() => {});
-    }
+    const timer = setTimeout(async () => {
+      const api = await getApi(1000);
+      if (api) {
+        api.save_settings(state).catch(() => {});
+      }
+    }, 800);
+    return () => clearTimeout(timer);
   }, [state]);
-  // Debounced live preview refresh
+
+  // Debounced live preview refresh (ONLY re-runs when visual rendering properties change, NOT on theme or folder changes!)
   const activeFile = fileList[currentIdx];
   const isCurrent3D = activeFile?.is_3d || false;
 
@@ -175,7 +179,7 @@ export default function App() {
     const timer = setTimeout(async () => {
       setIsLoadingPreview(true);
       try {
-        const api = window.pywebview?.api;
+        const api = await getApi(3000);
         if (api) {
           const res = await api.render_preview(activeFile.path, state);
           if (cancelled) return;
@@ -203,13 +207,35 @@ export default function App() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [activeFile, state]);
+  }, [
+    activeFile,
+    state.text,
+    state.opacity,
+    state.invertTriangles,
+    state.solidColor,
+    state.textColor,
+    state.hasOutline,
+    state.outlineColor,
+    state.outlineThickness,
+    state.fontScale,
+    state.textPosX,
+    state.textPosY,
+    state.logoPath,
+    state.logoScale,
+    state.logoOpacity,
+    state.logoPosX,
+    state.logoPosY,
+    state.fontPath,
+    state.modelColor,
+    state.yaw,
+    state.pitch,
+  ]);
 
   // Folder scanning
   const scanFolder = async (folderPath: string) => {
     if (!folderPath) return;
     try {
-      const api = window.pywebview?.api;
+      const api = await getApi(3000);
       if (api) {
         const res = await api.scan_folder(folderPath);
         if (res?.files) {
@@ -302,7 +328,7 @@ export default function App() {
     setStats({ success: 0, failed: 0 });
     setProgress({ current: 0, total: fileList.length, message: "Starting batch generation…" });
 
-    const api = window.pywebview?.api;
+    const api = await getApi(3000);
     if (api) {
       api.start_batch(state.inputFolder, state.outputFolder || state.inputFolder, state).catch(() => {
         setIsProcessing(false);
@@ -311,7 +337,7 @@ export default function App() {
   };
 
   const handleCancelBatch = async () => {
-    const api = window.pywebview?.api;
+    const api = await getApi(3000);
     if (api) {
       api.cancel_batch().catch(() => {});
     }
@@ -912,26 +938,25 @@ export default function App() {
               <motion.button
                 whileHover={{ y: -0.5 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  if (activeFile && window.pywebview?.api) {
-                    setIsLoadingPreview(true);
-                    window.pywebview.api
-                      .render_preview(activeFile.path, state)
-                      .then((res) => {
-                        if (res?.dataUrl) {
-                          setPreviewDataUrl(res.dataUrl);
-                          setPreviewMeta({ width: res.width || 0, height: res.height || 0, name: activeFile.name });
-                          setRenderError(null);
-                        } else if (res?.error) {
-                          setRenderError(res.error);
-                        }
-                      })
-                      .catch((err: unknown) => {
-                        setRenderError(err instanceof Error ? err.message : "Refresh failed");
-                      })
-                      .finally(() => {
-                        setIsLoadingPreview(false);
-                      });
+                onClick={async () => {
+                  if (!activeFile) return;
+                  setIsLoadingPreview(true);
+                  try {
+                    const api = await getApi(3000);
+                    if (api) {
+                      const res = await api.render_preview(activeFile.path, state);
+                      if (res?.dataUrl) {
+                        setPreviewDataUrl(res.dataUrl);
+                        setPreviewMeta({ width: res.width || 0, height: res.height || 0, name: activeFile.name });
+                        setRenderError(null);
+                      } else if (res?.error) {
+                        setRenderError(res.error);
+                      }
+                    }
+                  } catch (err: unknown) {
+                    setRenderError(err instanceof Error ? err.message : "Refresh failed");
+                  } finally {
+                    setIsLoadingPreview(false);
                   }
                 }}
                 style={secondaryBtnStyle}

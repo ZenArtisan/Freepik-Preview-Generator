@@ -28,6 +28,7 @@ export interface PreviewState {
   opacity: number;
   yaw: number;
   pitch: number;
+  modelColor?: string;
   theme: "light" | "dark";
 }
 
