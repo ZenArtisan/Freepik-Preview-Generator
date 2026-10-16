@@ -131,19 +131,6 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
 
 ---
 
-## 📦 GitHub Releases vs. GitHub Packages (FAQ)
-
-> **What are "GitHub Packages" shown on the repository, and do we need them?**
-
-* **GitHub Releases (What PreviewGen Uses)**:
-  * **Purpose**: Distributes ready-to-run desktop applications (`.exe` for Windows, `.dmg` for macOS, `.AppImage` for Linux).
-  * **For Users**: End-users download and install the complete app directly without compiling code.
-* **GitHub Packages**:
-  * **Purpose**: A code library repository for developers (similar to `npm`, `pip`/PyPI, Docker Container Registry, or NuGet).
-  * **For Developers**: Used when publishing reusable Python modules (e.g. `pip install previewgen-core`) so other developers can import them into their code.
-  * **Verdict**: For standalone desktop software like PreviewGen, **GitHub Releases is the official and correct distribution hub**. You do not need to publish to GitHub Packages unless we split the rendering engine into an open-source library for other developers.
-
----
 
 ## 🚀 Key Features
 
@@ -191,21 +178,6 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
 - **Customizable Label**: Defaults to `100% TRANSPARENT`, or enter your own custom text (or leave blank).
 - **Outer Outline / Stroke**: Toggleable stroke with custom color and thickness (Thin, Normal, Medium, Thick, Extra Bold) so text remains readable over any image.
 - **Live Sliders**: Real-time Font Scale (50% to 180%) and Text Opacity (10% to 100%).
-
-### 8. macOS Premium Design Craft (Ice Blue & Slate Palette)
-- **Top Specular Insets (The Apple Bevel)**: Milled glass appearance with subtle interior top-edge highlights catching directional light (`box-shadow: inset 0 1px 0 ...`).
-- **Damped Spring Physics**: Calibrated spring dynamics ($\text{stiffness: } 460, \text{damping: } 32, \text{mass: } 0.8$) powering sliders and toggles with zero robotic linear easing.
-- **Gliding Segmented Pills (`layoutId`)**: Active pills glide smoothly underneath preset options with zero flickering.
-- **Tabular Numerics (`tabular-nums`)**: Equal-width digits prevent horizontal layout jumping during live slider scrubbing.
-- **Frosted Glass Floating 3D HUD**: Floating translucent HUD pill with `backdrop-filter: blur(14px)`.
-- **Kinetic Cursor**: Shifts between `grab` and `grabbing` during 3D rotation.
-- **Light Mode Palette**: Airy mist-blue canvas (`#D6E6EF`), elevated mist cards (`#EBF3F8`), soft slate borders (`#BACED9`), and slate steel blue accents (`#7FA6B8`) with zero pure stark white.
-- **Dark Mode Palette**: Pure premium neutral dark grey (`#121212` canvas, `#1E1E1E` elevated cards, `#2D2D2D` subtle borders) with `#7FA6B8` accents and zero blue tint.
-
-### 9. Asynchronous 60 FPS Performance Engine
-- **0ms UI Thread Latency**: Sliders, mouse dragging, and buttons run on the main UI loop with instant 60 FPS responsiveness.
-- **Background Rendering Pool**: Heavy 3D rendering and JPEG encoding run off-thread and stream previews asynchronously.
-- **Single-Flight Task Dropping**: Obsolete intermediate frames are automatically dropped during rapid slider movement so tasks never queue up.
 
 ---
 
