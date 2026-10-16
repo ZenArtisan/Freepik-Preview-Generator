@@ -29,11 +29,37 @@ from processor import (
 
 SETTINGS_FILE = Path.home() / ".previewgen_settings.json"
 
+# On Windows, PyInstaller --noconsole sets sys.stdout/sys.stderr to invalid handles.
+# If unhandled, writing or flushing during interpreter shutdown raises OSError 22.
+if sys.platform == "win32" and getattr(sys, "frozen", False):
+    import ctypes
+    _attached = False
+    try:
+        if ctypes.windll.kernel32.AttachConsole(0xFFFFFFFF):  # ATTACH_PARENT_PROCESS
+            _attached = True
+    except Exception:
+        pass
+
+    if _attached:
+        try:
+            sys.stdout = open("CONOUT$", "w", encoding="utf-8", errors="replace")
+            sys.stderr = open("CONOUT$", "w", encoding="utf-8", errors="replace")
+        except Exception:
+            _attached = False
+
+    if not _attached:
+        try:
+            sys.stdout = open(os.devnull, "w", encoding="utf-8", errors="replace")
+        except Exception:
+            sys.stdout = None
+        try:
+            sys.stderr = open(os.devnull, "w", encoding="utf-8", errors="replace")
+        except Exception:
+            sys.stderr = None
 
 import logging
 from logging.handlers import RotatingFileHandler
 import platform
-
 
 def get_log_directory() -> Path:
     if sys.platform == "win32":
@@ -415,7 +441,14 @@ def main() -> int:
         assert test_preview.size == (100, 100)
         api = DesktopApi()
         api.cleanup()
-        print(f"[STARTUP-TEST] OK: PreviewGen initialized successfully. Bundle: {html_dist}, Formats: {len(SUPPORTED_EXTENSIONS)}")
+        msg = f"[STARTUP-TEST] OK: PreviewGen initialized successfully. Bundle: {html_dist}, Formats: {len(SUPPORTED_EXTENSIONS)}"
+        logging.info(msg)
+        try:
+            if sys.stdout is not None:
+                sys.stdout.write(msg + "\n")
+                sys.stdout.flush()
+        except Exception:
+            pass
         return 0
 
     if not target_url:

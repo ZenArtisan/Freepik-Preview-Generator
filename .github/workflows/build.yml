@@ -83,11 +83,11 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Running Windows startup smoke test..."
-          $output = & "dist\PreviewGen\PreviewGen.exe" --smoke-test
-          Write-Host $output
-          if ($LASTEXITCODE -ne 0) {
-            throw "Windows startup test failed with exit code $LASTEXITCODE"
+          $proc = Start-Process -FilePath "dist\PreviewGen\PreviewGen.exe" -ArgumentList "--smoke-test" -NoNewWindow -Wait -PassThru
+          if ($proc.ExitCode -ne 0) {
+            throw "Windows startup test failed with exit code $($proc.ExitCode)"
           }
+          Write-Host "Windows startup smoke test passed successfully!"
 
       - name: Sign Windows executable
         if: runner.os == 'Windows'
