@@ -86,14 +86,28 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", state.theme);
   }, [state.theme]);
 
+  // Robust pywebview API accessor with retry
+  const getApi = async (maxWaitMs: number = 3000): Promise<any> => {
+    if (window.pywebview?.api) return window.pywebview.api;
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      if (window.pywebview?.api) return window.pywebview.api;
+      const { promise, resolve } = Promise.withResolvers<void>();
+      setTimeout(resolve, 50);
+      await promise;
+    }
+    return window.pywebview?.api;
+  };
+
   // Initial Load from Python Backend with pywebviewready listener
   useEffect(() => {
+    let unmounted = false;
     const init = async () => {
-      const api = window.pywebview?.api;
-      if (api) {
+      const api = await getApi(5000);
+      if (api && !unmounted) {
         try {
           const saved = await api.get_initial_state();
-          if (saved) {
+          if (saved && !unmounted) {
             setState((prev) => ({ ...prev, ...saved }));
             if (saved.inputFolder) {
               scanFolder(saved.inputFolder);
@@ -129,11 +143,12 @@ export default function App() {
       }
     };
 
-    if (window.pywebview?.api) {
-      init();
-    } else {
-      window.addEventListener("pywebviewready", init, { once: true });
-    }
+    init();
+    window.addEventListener("pywebviewready", init);
+    return () => {
+      unmounted = true;
+      window.removeEventListener("pywebviewready", init);
+    };
   }, []);
 
   // Save settings whenever state changes (gated on initial state having loaded)
@@ -214,7 +229,7 @@ export default function App() {
 
   const handleBrowseInput = async () => {
     try {
-      const api = window.pywebview?.api;
+      const api = await getApi(3000);
       if (api) {
         const folder = await api.browse_input_folder();
         if (folder) {
@@ -233,7 +248,7 @@ export default function App() {
 
   const handleBrowseOutput = async () => {
     try {
-      const api = window.pywebview?.api;
+      const api = await getApi(3000);
       if (api) {
         const folder = await api.browse_output_folder();
         if (folder) {
@@ -247,7 +262,7 @@ export default function App() {
 
   const handleOpenOutput = async () => {
     const target = state.outputFolder || state.inputFolder;
-    const api = window.pywebview?.api;
+    const api = await getApi(3000);
     if (target && api) {
       api.open_folder(target).catch(() => {});
     }
@@ -255,7 +270,7 @@ export default function App() {
 
   const handleBrowseLogo = async () => {
     try {
-      const api = window.pywebview?.api;
+      const api = await getApi(3000);
       if (api) {
         const logo = await api.browse_logo();
         if (logo) {
@@ -269,7 +284,7 @@ export default function App() {
 
   const handleBrowseFont = async () => {
     try {
-      const api = window.pywebview?.api;
+      const api = await getApi(3000);
       if (api) {
         const font = await api.browse_font();
         if (font) {
@@ -432,16 +447,30 @@ export default function App() {
             <div style={{ display: "flex", gap: "8px" }}>
               <input
                 type="text"
-                readOnly
                 placeholder="Folder containing 2D images, 3D models, CAD drawings, or ZIPs"
                 value={state.inputFolder}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setState((s) => ({
+                    ...s,
+                    inputFolder: val,
+                    outputFolder: s.sameFolder || !s.outputFolder ? val : s.outputFolder,
+                  }));
+                }}
+                onBlur={() => {
+                  if (state.inputFolder) scanFolder(state.inputFolder);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && state.inputFolder) {
+                    scanFolder(state.inputFolder);
+                  }
+                }}
                 style={{ flex: 1 }}
               />
               <motion.button whileHover={{ y: -0.5 }} whileTap={{ scale: 0.97 }} onClick={handleBrowseInput} style={secondaryBtnStyle}>
                 Browse…
               </motion.button>
             </div>
-
             <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", cursor: "pointer", marginTop: "4px" }}>
               <input
                 type="checkbox"
@@ -462,10 +491,13 @@ export default function App() {
             <div style={{ display: "flex", gap: "8px" }}>
               <input
                 type="text"
-                readOnly
                 placeholder="Destination folder for previews"
                 value={state.outputFolder}
                 disabled={state.sameFolder}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setState((s) => ({ ...s, outputFolder: val }));
+                }}
                 style={{ flex: 1 }}
               />
               <motion.button whileHover={{ y: -0.5 }} whileTap={{ scale: 0.97 }} onClick={handleBrowseOutput} disabled={state.sameFolder} style={secondaryBtnStyle}>

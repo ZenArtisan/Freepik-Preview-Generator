@@ -111,9 +111,8 @@ PreviewGen makes bulk preview creation effortless in 6 simple steps:
 ```
 
 1. **Select Input Folder (or ZIP Archive)**:
-   - Click **Browse…** in panel `1 · Folders` and pick a folder containing your transparent assets.
-   - You can drop folders with **2D images, 3D models, CAD drawings, or nested `.zip` archives**!
-2. **Flip Through Files with Live Viewport Navigation**:
+   - Click **Browse…** in panel `1 · Folders` or paste your folder path directly into the input box and press Enter!
+   - 💡 **Best Practice (Clean Batches)**: For consistent branding and maximum speed, organize your files into dedicated folders containing **one type of asset at a time** (e.g. one folder with all your `.png` cutouts, another folder with `.psd` files, and another with your `.glb`/`.obj` 3D models). This ensures 3D camera angles and watermark settings remain perfectly calibrated for the entire batch.
    - Use the **`◀ Prev`** and **`Next ▶`** buttons in the toolbar (or press **Left/Right Arrow keys** on your keyboard) to preview any asset in your folder instantly.
 3. **Rotate 3D Models & CAD Solids in Full 360°**:
    - Click and drag your mouse directly on the preview image to orbit the model in 360°.

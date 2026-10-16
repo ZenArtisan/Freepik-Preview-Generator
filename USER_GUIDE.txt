@@ -1,0 +1,145 @@
+================================================================================
+PreviewGen - User Guide & Troubleshooting Manual
+Transparent Asset to Marketplace JPG Preview Generator
+================================================================================
+
+TABLE OF CONTENTS
+1. Overview & Best Practices
+2. How to Organize Your Folders (Clean Single-Format Batches)
+3. Step-by-Step Usage Guide
+4. 3D & CAD Controls (360° Orbit)
+5. Watermarks & Branding (Logos & Custom Typography)
+6. Troubleshooting & Common Issues (FAQ)
+7. Technical Support & Reporting Issues
+
+================================================================================
+1. OVERVIEW & BEST PRACTICES
+================================================================================
+PreviewGen is an ultra-fast desktop studio designed to batch-generate marketplace-
+ready JPG preview images for asset submissions (Freepik, Adobe Stock, Shutterstock, 
+Creative Market, etc.) from transparent cutouts, vectors, 3D meshes, and CAD drawings.
+
+Supported Formats:
+- 2D Raster:   .png, .webp, .tiff, .tif, .psd (Adobe Photoshop composite)
+- Vector:      .svg, .svgz (Smooth high-res vector rendering via resvg)
+- 3D Meshes:   .glb, .gltf, .obj, .stl, .ply, .blend
+- CAD Solids:  .step, .stp, .iges, .igs (B-Rep solids converted to 3D meshes)
+- CAD Drawings:.dxf (AutoCAD vector paths), .dwg, .max, .f3d, .mb (Header previews)
+- Archives:    .zip (Deep recursive in-memory indexing)
+
+================================================================================
+2. HOW TO ORGANIZE YOUR FOLDERS (CLEAN SINGLE-FORMAT BATCHES)
+================================================================================
+[IMPORTANT RECOMMENDATION]
+For the best results and fastest processing, organize your source assets into 
+dedicated folders by file type before generating previews:
+
+  Folder Example:
+  D:\MyMarketplaceAssets\
+    ├── Batch_01_PNG_Cutouts\   (Contains ONLY .png files)
+    ├── Batch_02_Photoshop_PSD\ (Contains ONLY .psd files)
+    ├── Batch_03_Vectors_SVG\   (Contains ONLY .svg files)
+    └── Batch_04_3D_Models_GLB\ (Contains ONLY .glb or .obj models)
+
+Why use clean single-format folders?
+1. Unified Settings: 3D models require rotation angles (Isometric 3/4, Yaw/Pitch),
+   while 2D cutouts use planar compositing. Grouping them ensures every item in
+   the batch receives the appropriate framing.
+2. Consistent Branding: Your watermark placement and font sizing will match
+   identically across the whole submission.
+3. Maximum Speed: PreviewGen processes clean single-type batches up to 5x faster
+   by reusing optimized renderer memory pipelines.
+
+================================================================================
+3. STEP-BY-STEP USAGE GUIDE
+================================================================================
+Step 1: Select Input Folder
+  - Click "Browse…" in Panel 1 (Folders) to select your asset folder.
+  - Alternatively, you can copy your folder path (e.g. D:\Transparent\Batch 1)
+    and paste it directly into the Input Folder box, then press Enter!
+
+Step 2: Choose Output Destination
+  - By default, "Save preview JPGs in the same folder as input files" is checked.
+  - If you want a separate export directory, uncheck the box and click "Browse…".
+  - Click "Open" anytime to open the folder in Windows File Explorer.
+
+Step 3: Pick Diagonal Split Background & Colors
+  - Choose between "Left Solid / Right Transparent" or "Left Transparent / Right Solid".
+  - Click any preset color swatch (White, Off-White, Light Gray, Dark) or click
+    the color picker box to choose any custom brand color.
+
+Step 4: Add Logo & Watermark Text
+  - Click "Upload Logo / Icon…" to add your company logo (.png, .webp, .svg, .ico).
+  - Use the X and Y sliders to position the logo anywhere on the canvas.
+  - Enter your watermark text (defaults to "100% TRANSPARENT").
+  - Click "Browse Font File…" to load your brand font (.ttf, .otf, .woff).
+  - Adjust Font Scale, Opacity, and Outline Thickness.
+
+Step 5: Preview Your Files
+  - Use the "◀ Prev" and "Next ▶" buttons (or Left/Right arrow keys) to browse
+    assets in your folder in real-time.
+
+Step 6: Click "Generate All JPG Previews"
+  - The background multi-core worker will process all files.
+  - Progress and preview counts will update live.
+  - Once finished, click "Open Output Folder" to inspect your marketplace JPGs!
+
+================================================================================
+4. 3D & CAD CONTROLS (360° ORBIT)
+================================================================================
+When viewing a 3D model (.glb, .gltf, .obj, .stl, .ply) or CAD solid (.step, .iges):
+- Interactive Mouse Orbit: Click and drag your mouse directly on the preview image
+  to rotate the model freely in full 360°.
+- Preset Buttons: Use 1-click camera presets:
+    * Isometric (3/4) - Perfect angled submission view
+    * Front           - Direct head-on view
+    * Side            - 90° profile view
+    * Top             - Overhead plan view
+    * Back            - Rear elevation view
+- Sliders: Fine-tune exact degrees with the Horizontal Yaw (0°–360°) and Vertical
+  Pitch (-85° to +85°) sliders.
+- Color: Change the 3D model clay shade using the "Model Clay Shade" color swatches.
+
+================================================================================
+5. TROUBLESHOOTING & COMMON ISSUES (FAQ)
+================================================================================
+
+Q1: The Desktop Icon is not appearing on my PC.
+A1: PreviewGen automatically creates "PreviewGen.lnk" on your Desktop the first time
+    you launch PreviewGen.exe. If it is not visible:
+    - Right-click your Desktop and select "Refresh".
+    - Or double-click "Install-Desktop-Icon.bat" included in your folder.
+
+Q2: The "Browse…" button did not open a folder picker.
+A2: PreviewGen includes dual-mode folder selection:
+    1. Direct Path Pasting: You can type or paste your folder path directly into the
+       input text box (e.g. D:\Transparent\Batch 1) and press Enter.
+    2. PowerShell Fallback: PreviewGen automatically falls back to native Windows
+       FolderBrowserDialog if webview dialog reflection is blocked by system policies.
+
+Q3: When I click 3D files, it says "cannot convert float NaN to integer" or shows an error.
+A3: In v2.0.3+, degenerate triangles with zero area are automatically normalized
+    with np.nan_to_num. Make sure your model has valid geometry. For .blend files,
+    ensure Blender was saved with embedded thumbnails enabled, or export to .glb/.obj
+    for direct 360° rendering without Blender.
+
+Q4: Why does the app feel slow or freeze when I pick a folder?
+A4: If your folder contains gigabytes of compressed .zip archives, avoid unpacking
+    them manually. In v2.0.3+, PreviewGen indexes zip contents in memory in milliseconds
+    without extracting unneeded files to disk.
+
+Q5: Can I run PreviewGen from source without compiling?
+A5: Yes! You can run PreviewGen directly using Python:
+    1. Open Command Prompt in the folder.
+    2. Run: python -m venv .venv
+    3. Run: .venv\Scripts\activate
+    4. Run: pip install -r requirements.txt
+    5. Run: python app.py
+
+================================================================================
+6. LICENSING & TERMS
+================================================================================
+- Personal & Non-Commercial Use: Free.
+- Commercial & Agency Use: Requires a commercial license. See LICENSE for details.
+- GitHub Repository: https://github.com/ZenArtisan/Freepik-Preview-Generator
+================================================================================

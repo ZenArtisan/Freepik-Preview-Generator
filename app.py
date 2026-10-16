@@ -191,53 +191,103 @@ class DesktopApi:
         except Exception:
             return False
 
+    def _powershell_folder_dialog(self, title: str = "Select Folder") -> str:
+        if sys.platform != "win32":
+            return ""
+        try:
+            cmd = (
+                "[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null; "
+                "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
+                f"$f.Description = '{title}'; "
+                "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.SelectedPath }"
+            )
+            out = subprocess.check_output(
+                ["powershell", "-NoProfile", "-Command", cmd],
+                text=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            ).strip()
+            if out and Path(out).is_dir():
+                return out
+        except Exception as exc:
+            logging.debug("PowerShell folder dialog fallback notice: %s", exc)
+        return ""
+
+    def _powershell_file_dialog(self, title: str, filter_str: str) -> str:
+        if sys.platform != "win32":
+            return ""
+        try:
+            cmd = (
+                "[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null; "
+                "$f = New-Object System.Windows.Forms.OpenFileDialog; "
+                f"$f.Title = '{title}'; "
+                f"$f.Filter = '{filter_str}'; "
+                "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"
+            )
+            out = subprocess.check_output(
+                ["powershell", "-NoProfile", "-Command", cmd],
+                text=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            ).strip()
+            if out and Path(out).is_file():
+                return out
+        except Exception as exc:
+            logging.debug("PowerShell file dialog fallback notice: %s", exc)
+        return ""
+
     def browse_input_folder(self) -> str:
         """Open native OS folder selection dialog."""
-        if not self.window:
-            return ""
-        res = self.window.create_file_dialog(webview.FOLDER_DIALOG)
-        if res and len(res) > 0:
-            return res[0]
-        return ""
+        if self.window:
+            try:
+                res = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+                if res and len(res) > 0:
+                    return res[0]
+            except Exception as exc:
+                logging.warning("pywebview folder dialog failed: %s", exc)
+        return self._powershell_folder_dialog("Select Input Assets Folder")
 
     def browse_output_folder(self) -> str:
         """Open native OS folder selection dialog."""
-        if not self.window:
-            return ""
-        res = self.window.create_file_dialog(webview.FOLDER_DIALOG)
-        if res and len(res) > 0:
-            return res[0]
-        return ""
+        if self.window:
+            try:
+                res = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+                if res and len(res) > 0:
+                    return res[0]
+            except Exception as exc:
+                logging.warning("pywebview output folder dialog failed: %s", exc)
+        return self._powershell_folder_dialog("Select Output JPG Folder")
 
     def browse_logo(self) -> str:
         """Open native OS file selection dialog for logo images."""
-        if not self.window:
-            return ""
-        res = self.window.create_file_dialog(
-            webview.OPEN_DIALOG,
-            file_types=("Logo Images (*.png;*.webp;*.svg;*.ico;*.jpg;*.jpeg)",),
-        )
-        if res and len(res) > 0:
-            return res[0]
-        return ""
+        if self.window:
+            try:
+                res = self.window.create_file_dialog(
+                    webview.OPEN_DIALOG,
+                    file_types=("Logo Images (*.png;*.webp;*.svg;*.ico;*.jpg;*.jpeg)",),
+                )
+                if res and len(res) > 0:
+                    return res[0]
+            except Exception as exc:
+                logging.warning("pywebview file dialog failed: %s", exc)
+        return self._powershell_file_dialog("Select Logo Image", "Images (*.png;*.webp;*.svg;*.ico;*.jpg)|*.png;*.webp;*.svg;*.ico;*.jpg;*.jpeg|All Files (*.*)|*.*")
 
     def browse_font(self) -> str:
         """Open native OS file selection dialog for font files."""
-        if not self.window:
-            return ""
-        res = self.window.create_file_dialog(
-            webview.OPEN_DIALOG,
-            file_types=("Font Files (*.ttf;*.otf;*.woff;*.woff2)",),
-        )
-        if res and len(res) > 0:
-            return res[0]
-        return ""
+        if self.window:
+            try:
+                res = self.window.create_file_dialog(
+                    webview.OPEN_DIALOG,
+                    file_types=("Font Files (*.ttf;*.otf;*.woff;*.woff2)",),
+                )
+                if res and len(res) > 0:
+                    return res[0]
+            except Exception as exc:
+                logging.warning("pywebview font dialog failed: %s", exc)
+        return self._powershell_file_dialog("Select Custom Brand Font", "Fonts (*.ttf;*.otf;*.woff;*.woff2)|*.ttf;*.otf;*.woff;*.woff2|All Files (*.*)|*.*")
 
     def open_folder(self, folder_path: str) -> bool:
         """Open the target directory in Windows Explorer / macOS Finder / Linux file manager."""
         p = Path(folder_path).resolve()
-        if not p.is_dir():
-            return False
+        p.mkdir(parents=True, exist_ok=True)
         try:
             if sys.platform == "win32":
                 os.startfile(str(p))

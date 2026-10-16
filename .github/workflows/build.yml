@@ -107,6 +107,7 @@ jobs:
         run: |
           Copy-Item install_desktop_icon.bat dist\PreviewGen\Install-Desktop-Icon.bat
           Copy-Item app.ico dist\PreviewGen\app.ico
+          Copy-Item USER_GUIDE.txt dist\PreviewGen\USER_GUIDE.txt
           Compress-Archive -Path dist\PreviewGen\* -DestinationPath PreviewGen-Windows.zip -Force
           # Compile Inno Setup installer wizard (PreviewGen-Setup.exe)
           & "C:\Program Files (x86)\Inno Setup 6\iscc.exe" installer.iss
@@ -299,3 +300,4 @@ jobs:
             PreviewGen-macOS.dmg
             PreviewGen-Linux.AppImage
             SHA256SUMS.txt
+            USER_GUIDE.txt

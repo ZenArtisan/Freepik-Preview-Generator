@@ -23,6 +23,7 @@ if errorlevel 1 (
 echo.
 copy /y install_desktop_icon.bat dist\PreviewGen\Install-Desktop-Icon.bat >nul
 copy /y app.ico dist\PreviewGen\app.ico >nul
+copy /y USER_GUIDE.txt dist\PreviewGen\USER_GUIDE.txt >nul
 
 set "ISCC="
 if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
